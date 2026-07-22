@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/gameboard.tsx","./src/hooks/usecolyseusroom.ts","./src/hooks/uselocalgame.ts","./src/services/colyseusclient.ts","./src/utils/cardimages.ts"],"version":"5.9.3"}
