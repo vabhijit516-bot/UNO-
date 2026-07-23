@@ -1,7 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
-import { Server } from 'colyseus';
+import * as colyseus from 'colyseus';
+const { Server } = colyseus;
 import { monitor } from '@colyseus/monitor';
 import { UnoRoom } from './rooms/UnoRoom.js';
 

@@ -1,4 +1,7 @@
-import { Room, Client, Delayed } from 'colyseus';
+import * as colyseus from 'colyseus';
+const { Room } = colyseus;
+type Client = colyseus.Client;
+type Delayed = colyseus.Delayed;
 import { ArraySchema } from '@colyseus/schema';
 import { type GameAction, initializeGame, applyAction } from '@uno/shared';
 import { UnoGameState, PlayerSchema, CardSchema } from './schema/GameSchema.js';
