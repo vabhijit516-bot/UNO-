@@ -138,7 +138,7 @@ function OnlineGame() {
 
     // Use actual user name if available, fallback otherwise
     const name = user?.displayName || 'Player';
-    const { room, gameState, localPlayerId, error, playCard, drawCard, callUno, chooseColor, startGame } = useColyseusRoom(roomCode, name);
+    const { room, gameState, localPlayerId, error, playCard, drawCard, callUno, chooseColor, passTurn, catchUno, startNextRound, startGame } = useColyseusRoom(roomCode, name);
     const [copied, setCopied] = useState(false);
 
     useEffect(() => {
@@ -240,13 +240,16 @@ function OnlineGame() {
             onDrawCard={drawCard}
             onCallUno={callUno}
             onChooseColor={chooseColor}
+            onPassTurn={passTurn}
+            onCatchUno={catchUno}
+            onStartNextRound={startNextRound}
         />
     );
 }
 
 function Local() {
     // Hook automatically manages bot turns
-    const { gameState, localPlayerId, playCard, drawCard, callUno, chooseColor } = useLocalGame(['Player 1', 'Bot 1', 'Bot 2', 'Bot 3']);
+    const { gameState, localPlayerId, playCard, drawCard, callUno, chooseColor, passTurn, catchUno, startNextRound } = useLocalGame(['Player 1', 'Bot 1', 'Bot 2', 'Bot 3']);
 
     return (
         <GameBoard 
@@ -256,6 +259,9 @@ function Local() {
             onDrawCard={drawCard}
             onCallUno={callUno}
             onChooseColor={chooseColor}
+            onPassTurn={passTurn}
+            onCatchUno={catchUno}
+            onStartNextRound={startNextRound}
         />
     );
 }

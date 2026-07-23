@@ -33,6 +33,12 @@ export class UnoGameState extends Schema {
     @type('string') phase: string = 'waiting';
     @type('number') turnTimeRemaining: number = 30;
     @type('string') roomCode: string = '';
+    @type('boolean') hasDrawnCard: boolean = false;
+    @type('string') drawnCardId: string = '';
+    
+    // Scores
+    @type({ map: 'number' }) matchScores = new MapSchema<number>();
+    @type({ map: 'number' }) roundScores = new MapSchema<number>();
 
     // Server-only (NOT synced — no @type decorator)
     drawPile: Card[] = [];

@@ -55,6 +55,18 @@ export class UnoRoom extends Room<UnoGameState> {
     this.onMessage('chooseColor', (client, action: GameAction) => {
       this.handlePlayerAction(client.sessionId, action);
     });
+
+    this.onMessage('passTurn', (client) => {
+      this.handlePlayerAction(client.sessionId, { type: 'passTurn' });
+    });
+
+    this.onMessage('catchUno', (client, action: GameAction) => {
+      this.handlePlayerAction(client.sessionId, action);
+    });
+
+    this.onMessage('startNextRound', (client) => {
+      this.handlePlayerAction(client.sessionId, { type: 'startNextRound' });
+    });
   }
 
   private handlePlayerAction(playerId: string, action: GameAction) {
@@ -148,9 +160,12 @@ export class UnoRoom extends Room<UnoGameState> {
       activeColor: this.state.activeColor as any,
       phase: this.state.phase as any,
       turnTimerSeconds: this.state.turnTimeRemaining,
+      hasDrawnCard: this.state.hasDrawnCard,
+      drawnCardId: this.state.drawnCardId,
       roundWinnerId: undefined,
-      roundScores: {},
+      roundScores: Object.fromEntries(this.state.roundScores.entries()),
       matchWinnerId: undefined,
+      matchScores: Object.fromEntries(this.state.matchScores.entries()),
       settings: { maxPlayers: this.maxClients, turnTimerSeconds: 30, scoreTarget: 500, houseRules: { stacking: false, jumpIn: false, drawUntilMatch: false, sevenZeroSwap: false } },
     };
   }
@@ -163,6 +178,18 @@ export class UnoRoom extends Room<UnoGameState> {
     this.state.drawPileCount = state.drawPile.length;
     this.state.direction = state.direction;
     this.state.turnTimeRemaining = state.turnTimerSeconds;
+    this.state.hasDrawnCard = state.hasDrawnCard;
+    this.state.drawnCardId = state.drawnCardId || '';
+    
+    // Update scores
+    this.state.roundScores.clear();
+    for (const [id, score] of Object.entries(state.roundScores)) {
+        this.state.roundScores.set(id, score);
+    }
+    this.state.matchScores.clear();
+    for (const [id, score] of Object.entries(state.matchScores)) {
+        this.state.matchScores.set(id, score);
+    }
     
     // Update internal arrays that are not synced to clients directly
     this.state.drawPile = [...state.drawPile];

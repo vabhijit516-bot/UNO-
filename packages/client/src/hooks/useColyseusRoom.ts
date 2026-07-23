@@ -50,8 +50,11 @@ export function useColyseusRoom(roomId?: string, playerName = 'Player') {
                         activeColor: state.activeColor as any,
                         phase: state.phase,
                         turnTimerSeconds: state.turnTimeRemaining,
+                        hasDrawnCard: state.hasDrawnCard,
+                        drawnCardId: state.drawnCardId,
                         settings: { maxPlayers: 6, turnTimerSeconds: 30, scoreTarget: 500, houseRules: { stacking: false, jumpIn: false, drawUntilMatch: false, sevenZeroSwap: false } },
-                        roundScores: {}
+                        roundScores: Object.fromEntries(state.roundScores.entries()),
+                        matchScores: Object.fromEntries(state.matchScores.entries()),
                     };
 
                     // Fix currentPlayerIndex
@@ -94,6 +97,18 @@ export function useColyseusRoom(roomId?: string, playerName = 'Player') {
         if (room) room.send('chooseColor', { type: 'chooseColor', color });
     }, [room]);
 
+    const passTurn = useCallback(() => {
+        if (room) room.send('passTurn', { type: 'passTurn' });
+    }, [room]);
+
+    const catchUno = useCallback((targetId: string) => {
+        if (room) room.send('catchUno', { type: 'catchUno', targetPlayerId: targetId });
+    }, [room]);
+
+    const startNextRound = useCallback(() => {
+        if (room) room.send('startNextRound', { type: 'startNextRound' });
+    }, [room]);
+
     const startGame = useCallback(() => {
         if (room) room.send('startGame');
     }, [room]);
@@ -107,6 +122,9 @@ export function useColyseusRoom(roomId?: string, playerName = 'Player') {
         drawCard,
         callUno,
         chooseColor,
+        passTurn,
+        catchUno,
+        startNextRound,
         startGame
     };
 }

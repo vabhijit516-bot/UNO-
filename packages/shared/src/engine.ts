@@ -39,45 +39,103 @@ export function initializeGame(playerIds: string[], settings: Partial<RoomSettin
         activeColor: firstCard.color === 'wild' ? 'red' : firstCard.color,
         phase: 'playing',
         turnTimerSeconds: resolvedSettings.turnTimerSeconds,
+        hasDrawnCard: false,
         roundScores: {},
+        matchScores: Object.fromEntries(playerIds.map(id => [id, 0])),
         settings: resolvedSettings,
     };
 }
 
 export function applyAction(state: EngineState, playerId: string, action: GameAction): { newState: EngineState; events: GameEvent[]; error?: string } {
+    // catchUno can be called at any time, by anyone, on anyone else
+    if (action.type === 'catchUno') {
+        const targetIndex = state.players.findIndex(p => p.id === action.targetPlayerId);
+        if (targetIndex === -1) return { newState: state, events: [], error: 'Target not found' };
+        if (action.targetPlayerId === playerId) return { newState: state, events: [], error: 'Cannot catch yourself' };
+        
+        const target = state.players[targetIndex];
+        if (target.hand.length === 1 && !target.calledUno) {
+            // Caught! Draw 2 cards.
+            let tempState = state;
+            const events: GameEvent[] = [{ type: 'unoCaught', payload: { catcher: playerId, caught: target.id } }];
+            const newHand = [...target.hand];
+
+            for (let i = 0; i < 2; i++) {
+                const { card, nextState: s1, newEvents } = drawCardFromPileHelper(tempState);
+                events.push(...newEvents);
+                if (card) {
+                    newHand.push(card);
+                    tempState = s1;
+                }
+            }
+
+            const updatedPlayers = [...tempState.players];
+            updatedPlayers[targetIndex] = { ...target, hand: newHand };
+            return { newState: { ...tempState, players: updatedPlayers }, events };
+        } else {
+            return { newState: state, events: [], error: 'Target is not vulnerable' };
+        }
+    }
+
+    if (action.type === 'startNextRound') {
+        if (state.phase !== 'roundEnd') return { newState: state, events: [], error: 'Round not over' };
+        
+        const deck = shuffleDeck(createDeck());
+        const playerIds = state.players.map(p => p.id);
+        const { hands, remaining } = dealHands(deck, playerIds.length);
+        const firstCard = remaining.shift()!;
+        const discardPile = [firstCard];
+        const nextStarter = (state.currentPlayerIndex + 1) % state.players.length;
+
+        const players: PlayerState[] = state.players.map((p, index) => ({
+            ...p,
+            hand: hands[index],
+            calledUno: false
+        }));
+
+        return {
+            newState: {
+                ...state,
+                players,
+                currentPlayerIndex: nextStarter,
+                direction: 1,
+                drawPile: remaining,
+                discardPile,
+                topDiscard: firstCard,
+                activeColor: firstCard.color === 'wild' ? 'red' : firstCard.color,
+                phase: 'playing',
+                hasDrawnCard: false,
+                drawnCardId: undefined,
+                roundWinnerId: undefined,
+                roundScores: {}
+            },
+            events: [{ type: 'roundStarted' }]
+        };
+    }
+
     const playerIndex = state.players.findIndex((player) => player.id === playerId);
     if (playerIndex === -1) return { newState: state, events: [], error: 'Player not found' };
+    
+    // callUno can be done slightly out of turn if it's their turn next, but let's restrict to their own turn or right after they play
+    if (action.type === 'callUno') {
+        const updatedPlayers = [...state.players];
+        updatedPlayers[playerIndex] = { ...updatedPlayers[playerIndex], calledUno: true };
+        return { newState: { ...state, players: updatedPlayers }, events: [{ type: 'unoCalled', payload: { playerId } }] };
+    }
+
     if (state.currentPlayerIndex !== playerIndex) return { newState: state, events: [], error: 'Not your turn' };
 
     const player = state.players[playerIndex];
     const events: GameEvent[] = [];
 
-    // Helper to draw a card, handling reshuffle
-    const drawCardFromPile = (currentState: EngineState): { card: Card | undefined, nextState: EngineState, newEvents: GameEvent[] } => {
-        let drawPile = [...currentState.drawPile];
-        let discardPile = [...currentState.discardPile];
-        const localEvents: GameEvent[] = [];
-
-        if (drawPile.length === 0) {
-            if (discardPile.length <= 1) {
-                return { card: undefined, nextState: currentState, newEvents: [] }; // Cannot draw
-            }
-            // Reshuffle
-            const top = discardPile.pop()!;
-            drawPile = shuffleDeck(discardPile);
-            discardPile = [top];
-            localEvents.push({ type: 'reshuffled' });
-        }
-        
-        const card = drawPile.shift();
-        return { 
-            card, 
-            nextState: { ...currentState, drawPile, discardPile }, 
-            newEvents: localEvents 
-        };
-    };
+    // Helper to draw a card, handling reshuffle (extracted out so catchUno can use it if needed)
+    // Actually, since we use it above, let's hoist it or use a separate function.
+    // We already moved it, let's just keep a local alias if needed.
+    const drawCardFromPile = (currentState: EngineState) => drawCardFromPileHelper(currentState);
 
     if (action.type === 'drawCard') {
+        if (state.hasDrawnCard) return { newState: state, events: [], error: 'Already drawn this turn' };
+
         const { card, nextState: s1, newEvents } = drawCardFromPile(state);
         events.push(...newEvents);
         
@@ -86,18 +144,40 @@ export function applyAction(state: EngineState, playerId: string, action: GameAc
         }
         
         const updatedPlayers = [...s1.players];
-        updatedPlayers[playerIndex] = { ...player, hand: [...player.hand, card] };
+        updatedPlayers[playerIndex] = { ...player, hand: [...player.hand, card], calledUno: false }; // reset UNO call if they draw
         
-        const nextIndex = (s1.currentPlayerIndex + s1.direction + s1.players.length) % s1.players.length;
         events.push({ type: 'cardDrawn', payload: { playerId, cardId: card.id } });
         
         return { 
-            newState: { ...s1, currentPlayerIndex: nextIndex, players: updatedPlayers }, 
+            newState: { 
+                ...s1, 
+                players: updatedPlayers,
+                hasDrawnCard: true,
+                drawnCardId: card.id
+            }, 
             events 
         };
     }
 
+    if (action.type === 'passTurn') {
+        if (!state.hasDrawnCard) return { newState: state, events: [], error: 'Must draw before passing' };
+        
+        const nextIndex = (state.currentPlayerIndex + state.direction + state.players.length) % state.players.length;
+        return {
+            newState: {
+                ...state,
+                currentPlayerIndex: nextIndex,
+                hasDrawnCard: false,
+                drawnCardId: undefined
+            },
+            events: [{ type: 'turnPassed', payload: { playerId } }]
+        };
+    }
+
     if (action.type === 'playCard') {
+        if (state.hasDrawnCard && action.cardId !== state.drawnCardId) {
+            return { newState: state, events: [], error: 'Can only play the drawn card' };
+        }
         const card = player.hand.find((item) => item.id === action.cardId);
         if (!card) return { newState: state, events: [], error: 'Card not found' };
         if (!isValidPlay(card, state.topDiscard, state.activeColor)) return { newState: state, events: [], error: 'Invalid play' };
@@ -164,6 +244,8 @@ export function applyAction(state: EngineState, playerId: string, action: GameAc
         }
 
         nextState.currentPlayerIndex = nextIndex;
+        nextState.hasDrawnCard = false;
+        nextState.drawnCardId = undefined;
 
         if (card.type === 'wild' || card.type === 'wildDrawFour') {
             nextState.phase = 'choosingColor';
@@ -178,9 +260,21 @@ export function applyAction(state: EngineState, playerId: string, action: GameAc
                 entry.id, 
                 entry.hand.reduce((sum, c) => sum + getCardPoints(c), 0)
             ]));
+            
+            const pointsGained = Object.values(roundScores).reduce((a,b) => a + b, 0);
+            const matchScores = { ...nextState.matchScores };
+            matchScores[roundWinnerId] = (matchScores[roundWinnerId] || 0) + pointsGained;
+
             nextState.roundWinnerId = roundWinnerId;
-            nextState.phase = 'roundEnd';
             nextState.roundScores = roundScores;
+            nextState.matchScores = matchScores;
+            
+            if (matchScores[roundWinnerId] >= nextState.settings.scoreTarget) {
+                nextState.phase = 'matchEnd';
+                nextState.matchWinnerId = roundWinnerId;
+            } else {
+                nextState.phase = 'roundEnd';
+            }
         }
 
         return { newState: nextState, events };
@@ -203,7 +297,14 @@ export function applyAction(state: EngineState, playerId: string, action: GameAc
         }
 
         return {
-            newState: { ...state, activeColor: action.color, phase: 'playing', currentPlayerIndex: nextIndex },
+            newState: { 
+                ...state, 
+                activeColor: action.color, 
+                phase: 'playing', 
+                currentPlayerIndex: nextIndex,
+                hasDrawnCard: false,
+                drawnCardId: undefined
+            },
             events: [{ type: 'colorChosen', payload: { color: action.color } }],
         };
     }
@@ -211,9 +312,44 @@ export function applyAction(state: EngineState, playerId: string, action: GameAc
     return { newState: state, events: [], error: 'Unsupported action' };
 }
 
+// Hoisted Helper
+function drawCardFromPileHelper(currentState: EngineState): { card: Card | undefined, nextState: EngineState, newEvents: GameEvent[] } {
+    let drawPile = [...currentState.drawPile];
+    let discardPile = [...currentState.discardPile];
+    const localEvents: GameEvent[] = [];
+
+    if (drawPile.length === 0) {
+        if (discardPile.length <= 1) {
+            return { card: undefined, nextState: currentState, newEvents: [] };
+        }
+        const top = discardPile.pop()!;
+        drawPile = shuffleDeck(discardPile);
+        discardPile = [top];
+        localEvents.push({ type: 'reshuffled' });
+    }
+    
+    const card = drawPile.shift();
+    return { 
+        card, 
+        nextState: { ...currentState, drawPile, discardPile }, 
+        newEvents: localEvents 
+    };
+}
+
 export function getValidActionsForPlayer(state: EngineState, playerId: string): GameAction[] {
     const playerIndex = state.players.findIndex((player) => player.id === playerId);
     if (playerIndex === -1 || state.currentPlayerIndex !== playerIndex) return [];
+    
+    if (state.hasDrawnCard) {
+        // Can only play the drawn card, or pass
+        const drawnCard = state.players[playerIndex].hand.find(c => c.id === state.drawnCardId);
+        const actions: GameAction[] = [{ type: 'passTurn' }];
+        if (drawnCard && isValidPlay(drawnCard, state.topDiscard, state.activeColor)) {
+            actions.push({ type: 'playCard', cardId: drawnCard.id });
+        }
+        return actions;
+    }
+
     const player = state.players[playerIndex];
     const validMoves = player.hand.filter((card) => isValidPlay(card, state.topDiscard, state.activeColor));
     return validMoves.map((card) => ({ type: 'playCard', cardId: card.id }));

@@ -9,9 +9,12 @@ interface GameBoardProps {
     onDrawCard: () => void;
     onCallUno: () => void;
     onChooseColor?: (color: string) => void;
+    onPassTurn?: () => void;
+    onCatchUno?: (targetId: string) => void;
+    onStartNextRound?: () => void;
 }
 
-export function GameBoard({ gameState, localPlayerId, onPlayCard, onDrawCard, onCallUno, onChooseColor }: GameBoardProps) {
+export function GameBoard({ gameState, localPlayerId, onPlayCard, onDrawCard, onCallUno, onChooseColor, onPassTurn, onCatchUno, onStartNextRound }: GameBoardProps) {
     const localPlayer = gameState.players.find(p => p.id === localPlayerId);
     const opponents = gameState.players.filter(p => p.id !== localPlayerId);
 
@@ -37,8 +40,21 @@ export function GameBoard({ gameState, localPlayerId, onPlayCard, onDrawCard, on
             <div className="absolute top-16 left-0 right-0 flex justify-center gap-12">
                 {opponents.map(opp => {
                     const isOppTurn = gameState.players[gameState.currentPlayerIndex]?.id === opp.id;
+                    const isVulnerable = opp.hand.length === 1 && !opp.calledUno;
+
                     return (
-                        <div key={opp.id} className="flex flex-col items-center">
+                        <div key={opp.id} className="flex flex-col items-center relative">
+                            {isVulnerable && (
+                                <motion.button
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    whileHover={{ scale: 1.1 }}
+                                    onClick={() => onCatchUno?.(opp.id)}
+                                    className="absolute -top-10 bg-red-500 text-white font-bold px-3 py-1 rounded-full text-sm shadow-[0_0_15px_rgba(239,68,68,0.8)] z-20 animate-pulse border-2 border-white"
+                                >
+                                    CATCH UNO!
+                                </motion.button>
+                            )}
                             <motion.div 
                                 animate={{ scale: isOppTurn ? 1.1 : 1, y: isOppTurn ? 10 : 0 }}
                                 className={`px-4 py-1 rounded-full mb-2 z-10 font-bold ${isOppTurn ? 'bg-yellow-500 text-slate-900 shadow-[0_0_15px_rgba(234,179,8,0.5)]' : 'bg-slate-800 text-slate-300'}`}
@@ -66,17 +82,28 @@ export function GameBoard({ gameState, localPlayerId, onPlayCard, onDrawCard, on
 
             {/* Center Piles */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-8 items-center">
-                <motion.div 
-                    whileHover={{ scale: 1.05, y: -5, filter: "brightness(1.1)" }}
-                    whileTap={{ scale: 0.95 }}
-                    className="relative cursor-pointer group"
-                    onClick={onDrawCard}
-                >
-                    <img src="/img/cards/back.png" className="h-40 w-28 shadow-[0_15px_35px_rgba(0,0,0,0.6)] rounded-lg border-2 border-slate-700 transition-all group-hover:border-blue-400" alt="draw pile" />
-                    <div className="absolute inset-0 bg-blue-500/0 group-hover:bg-blue-500/20 transition-colors rounded-lg flex items-center justify-center">
-                        <span className="opacity-0 group-hover:opacity-100 font-bold bg-black/80 px-4 py-2 text-blue-200 rounded-full transition-opacity shadow-[0_0_15px_rgba(59,130,246,0.5)] tracking-widest">DRAW</span>
-                    </div>
-                </motion.div>
+                {gameState.hasDrawnCard && isMyTurn ? (
+                    <motion.div 
+                        whileHover={{ scale: 1.05, y: -5, filter: "brightness(1.1)" }}
+                        whileTap={{ scale: 0.95 }}
+                        className="relative cursor-pointer group flex items-center justify-center h-40 w-28 bg-slate-800 rounded-lg border-2 border-slate-600 shadow-xl"
+                        onClick={onPassTurn}
+                    >
+                        <span className="font-bold text-slate-300 tracking-widest text-xl group-hover:text-white transition-colors">PASS</span>
+                    </motion.div>
+                ) : (
+                    <motion.div 
+                        whileHover={{ scale: 1.05, y: -5, filter: "brightness(1.1)" }}
+                        whileTap={{ scale: 0.95 }}
+                        className="relative cursor-pointer group"
+                        onClick={onDrawCard}
+                    >
+                        <img src="/img/cards/back.png" className="h-40 w-28 shadow-[0_15px_35px_rgba(0,0,0,0.6)] rounded-lg border-2 border-slate-700 transition-all group-hover:border-blue-400" alt="draw pile" />
+                        <div className="absolute inset-0 bg-blue-500/0 group-hover:bg-blue-500/20 transition-colors rounded-lg flex items-center justify-center">
+                            <span className="opacity-0 group-hover:opacity-100 font-bold bg-black/80 px-4 py-2 text-blue-200 rounded-full transition-opacity shadow-[0_0_15px_rgba(59,130,246,0.5)] tracking-widest">DRAW</span>
+                        </div>
+                    </motion.div>
+                )}
 
                 {gameState.topDiscard && (
                     <motion.div
@@ -142,6 +169,12 @@ export function GameBoard({ gameState, localPlayerId, onPlayCard, onDrawCard, on
                             const rotation = (index - middle) * 4;
                             const yOffset = Math.abs(index - middle) * 3;
 
+                            // Determine if card is playable
+                            let isPlayable = true;
+                            if (gameState.hasDrawnCard) {
+                                isPlayable = card.id === gameState.drawnCardId;
+                            }
+                            
                             return (
                                 <motion.div
                                     key={card.id}
@@ -150,19 +183,19 @@ export function GameBoard({ gameState, localPlayerId, onPlayCard, onDrawCard, on
                                     animate={{ 
                                         y: yOffset, 
                                         rotate: rotation, 
-                                        opacity: 1,
+                                        opacity: isPlayable ? 1 : 0.5,
                                         zIndex: index 
                                     }}
                                     exit={{ y: -200, scale: 0.5, opacity: 0 }}
                                     whileHover={{ 
-                                        y: -40, 
-                                        scale: 1.15, 
-                                        rotate: 0, 
+                                        y: isPlayable ? -40 : yOffset, 
+                                        scale: isPlayable ? 1.15 : 1, 
+                                        rotate: isPlayable ? 0 : rotation, 
                                         zIndex: 100 
                                     }}
                                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                                    className="cursor-pointer -ml-8 first:ml-0 transform-origin-bottom"
-                                    onClick={() => isMyTurn && onPlayCard(card.id)}
+                                    className={`${isPlayable ? 'cursor-pointer' : 'cursor-not-allowed'} -ml-8 first:ml-0 transform-origin-bottom`}
+                                    onClick={() => isMyTurn && isPlayable && onPlayCard(card.id)}
                                 >
                                     <img 
                                         src={getCardImageUrl(card)}
@@ -214,6 +247,52 @@ export function GameBoard({ gameState, localPlayerId, onPlayCard, onDrawCard, on
                                     </motion.button>
                                 ))}
                             </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Round/Match End Modal */}
+            <AnimatePresence>
+                {(gameState.phase === 'roundEnd' || gameState.phase === 'matchEnd') && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4"
+                    >
+                        <motion.div 
+                            initial={{ scale: 0.8, y: 50 }}
+                            animate={{ scale: 1, y: 0 }}
+                            className="bg-slate-900 border-2 border-slate-700 p-8 rounded-3xl shadow-2xl max-w-lg w-full text-center"
+                        >
+                            <h2 className="text-5xl font-display font-bold text-white mb-2 drop-shadow-lg">
+                                {gameState.phase === 'matchEnd' ? 'MATCH OVER!' : 'ROUND OVER!'}
+                            </h2>
+                            <p className="text-xl text-yellow-400 font-bold mb-8">
+                                Winner: {gameState.players.find(p => p.id === (gameState.phase === 'matchEnd' ? gameState.matchWinnerId : gameState.roundWinnerId))?.name}
+                            </p>
+                            
+                            <div className="bg-slate-800 rounded-xl p-4 mb-8">
+                                <h3 className="text-slate-400 font-bold mb-4 uppercase tracking-widest text-sm border-b border-slate-700 pb-2">Scoreboard (First to 500)</h3>
+                                <div className="space-y-3">
+                                    {gameState.players.map(p => (
+                                        <div key={p.id} className="flex justify-between items-center text-lg">
+                                            <span className={p.id === localPlayerId ? 'text-blue-400 font-bold' : 'text-slate-300'}>{p.name}</span>
+                                            <span className="font-mono font-bold text-white">{gameState.matchScores[p.id] || 0} pts</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {gameState.phase === 'roundEnd' && (
+                                <button 
+                                    onClick={onStartNextRound}
+                                    className="w-full py-4 bg-green-500 hover:bg-green-400 text-slate-900 font-bold rounded-xl text-xl transition-all shadow-[0_0_20px_rgba(34,197,94,0.4)] hover:scale-105"
+                                >
+                                    Start Next Round
+                                </button>
+                            )}
                         </motion.div>
                     </motion.div>
                 )}

@@ -40,9 +40,33 @@ export function useLocalGame(playerIds: string[]) {
         });
     }, [localPlayerId]);
 
-    const chooseColor = useCallback((color: Exclude<CardColor, 'wild'>) => {
+    const chooseColor = useCallback((color: string) => {
         setGameState(curr => {
-            const { newState, error } = applyAction(curr, localPlayerId, { type: 'chooseColor', color });
+            const { newState, error } = applyAction(curr, localPlayerId, { type: 'chooseColor', color: color as Exclude<CardColor, 'wild'> });
+            if (error) return curr;
+            return newState;
+        });
+    }, [localPlayerId]);
+
+    const passTurn = useCallback(() => {
+        setGameState(curr => {
+            const { newState, error } = applyAction(curr, localPlayerId, { type: 'passTurn' });
+            if (error) return curr;
+            return newState;
+        });
+    }, [localPlayerId]);
+
+    const catchUno = useCallback((targetId: string) => {
+        setGameState(curr => {
+            const { newState, error } = applyAction(curr, localPlayerId, { type: 'catchUno', targetPlayerId: targetId });
+            if (error) return curr;
+            return newState;
+        });
+    }, [localPlayerId]);
+
+    const startNextRound = useCallback(() => {
+        setGameState(curr => {
+            const { newState, error } = applyAction(curr, localPlayerId, { type: 'startNextRound' });
             if (error) return curr;
             return newState;
         });
@@ -59,6 +83,15 @@ export function useLocalGame(playerIds: string[]) {
                 const cId = curr.players[curr.currentPlayerIndex]?.id;
                 if (cId !== currentPlayerId) return curr; // State changed
 
+                // 1. Check if we can catch someone! (25% chance per tick to notice)
+                if (Math.random() < 0.25) {
+                    const vulnerable = curr.players.find(p => p.id !== cId && p.hand.length === 1 && !p.calledUno);
+                    if (vulnerable) {
+                        const { newState } = applyAction(curr, cId, { type: 'catchUno', targetPlayerId: vulnerable.id });
+                        return newState;
+                    }
+                }
+
                 if (curr.phase === 'choosingColor') {
                     // Bot picks random color
                     const colors: Exclude<CardColor, 'wild'>[] = ['red', 'yellow', 'green', 'blue'];
@@ -68,9 +101,19 @@ export function useLocalGame(playerIds: string[]) {
                 }
 
                 const validActions = getValidActionsForPlayer(curr, cId);
+                
                 if (validActions.length > 0) {
+                    // If we drew a card and it's playable, play it. If we can only pass, pass.
                     const action = validActions[Math.floor(Math.random() * validActions.length)];
                     const { newState } = applyAction(curr, cId, action);
+                    
+                    // Small chance for bot to forget to call UNO
+                    if (action.type === 'playCard' && newState.players.find(p => p.id === cId)?.hand.length === 1) {
+                        if (Math.random() > 0.2) { // 80% chance to remember UNO
+                            const { newState: finalState } = applyAction(newState, cId, { type: 'callUno' });
+                            return finalState;
+                        }
+                    }
                     return newState;
                 } else {
                     const { newState } = applyAction(curr, cId, { type: 'drawCard' });
@@ -88,6 +131,9 @@ export function useLocalGame(playerIds: string[]) {
         playCard,
         drawCard,
         callUno,
-        chooseColor
+        chooseColor,
+        passTurn,
+        catchUno,
+        startNextRound
     };
 }

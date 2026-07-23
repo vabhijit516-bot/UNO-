@@ -23,9 +23,17 @@ export interface CallUnoAction {
     type: 'callUno';
 }
 
+export interface PassTurnAction {
+    type: 'passTurn';
+}
+
 export interface CatchUnoAction {
     type: 'catchUno';
     targetPlayerId: string;
+}
+
+export interface StartNextRoundAction {
+    type: 'startNextRound';
 }
 
 export interface ChooseColorAction {
@@ -38,7 +46,9 @@ export type GameAction =
     | DrawCardAction
     | CallUnoAction
     | CatchUnoAction
-    | ChooseColorAction;
+    | ChooseColorAction
+    | PassTurnAction
+    | StartNextRoundAction;
 
 export interface GameEvent {
     type: string;
@@ -78,8 +88,11 @@ export interface EngineState {
     activeColor: CardColor;
     phase: GamePhase;
     turnTimerSeconds: number;
+    hasDrawnCard: boolean;
+    drawnCardId?: string;
     roundWinnerId?: string;
     roundScores: Record<string, number>;
+    matchScores: Record<string, number>;
     matchWinnerId?: string;
     settings: RoomSettings;
 }
