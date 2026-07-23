@@ -6,7 +6,9 @@ export function isValidPlay(card: Card, topDiscard: Card, activeColor: CardColor
     return card.color === activeColor;
   }
   if (card.color === activeColor) return true;
-  if (card.type === topDiscard.type && card.color === topDiscard.color) return true;
+  // Match Action Cards of the same type (e.g. Red Skip on Blue Skip)
+  if (card.type === topDiscard.type && card.type !== 'number') return true;
+  // Match Number Cards of the same value (e.g. Red 5 on Blue 5)
   if (card.type === 'number' && topDiscard.type === 'number') {
     return card.value === topDiscard.value;
   }

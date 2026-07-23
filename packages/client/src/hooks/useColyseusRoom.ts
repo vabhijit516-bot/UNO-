@@ -90,6 +90,10 @@ export function useColyseusRoom(roomId?: string, playerName = 'Player') {
         if (room) room.send('callUno');
     }, [room]);
 
+    const chooseColor = useCallback((color: string) => {
+        if (room) room.send('chooseColor', { type: 'chooseColor', color });
+    }, [room]);
+
     const startGame = useCallback(() => {
         if (room) room.send('startGame');
     }, [room]);
@@ -102,6 +106,7 @@ export function useColyseusRoom(roomId?: string, playerName = 'Player') {
         playCard,
         drawCard,
         callUno,
+        chooseColor,
         startGame
     };
 }

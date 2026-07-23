@@ -8,9 +8,10 @@ interface GameBoardProps {
     onPlayCard: (cardId: string) => void;
     onDrawCard: () => void;
     onCallUno: () => void;
+    onChooseColor?: (color: string) => void;
 }
 
-export function GameBoard({ gameState, localPlayerId, onPlayCard, onDrawCard, onCallUno }: GameBoardProps) {
+export function GameBoard({ gameState, localPlayerId, onPlayCard, onDrawCard, onCallUno, onChooseColor }: GameBoardProps) {
     const localPlayer = gameState.players.find(p => p.id === localPlayerId);
     const opponents = gameState.players.filter(p => p.id !== localPlayerId);
 
@@ -19,11 +20,17 @@ export function GameBoard({ gameState, localPlayerId, onPlayCard, onDrawCard, on
     return (
         <div className="min-h-screen relative overflow-hidden bg-game-bg">
             {/* Turn Indicator */}
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/80 px-6 py-2 rounded-full border border-slate-700 backdrop-blur-sm z-50">
-                <span className="text-xl font-bold font-display">
-                    {isMyTurn ? <span className="text-green-400">Your Turn</span> : <span className="text-yellow-400">{gameState.players[gameState.currentPlayerIndex]?.name}'s Turn</span>}
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/80 px-8 py-3 rounded-full border border-slate-700 backdrop-blur-md z-50 shadow-2xl flex items-center gap-4">
+                <span className="text-2xl font-bold font-display tracking-wider">
+                    {isMyTurn ? (
+                        <span className="text-green-400 animate-pulse drop-shadow-[0_0_8px_rgba(74,222,128,0.8)]">Your Turn</span>
+                    ) : (
+                        <span className="text-yellow-400">{gameState.players[gameState.currentPlayerIndex]?.name}'s Turn</span>
+                    )}
                 </span>
-                <span className="ml-4 text-sm text-slate-400">Direction: {gameState.direction === 1 ? '▶' : '◀'}</span>
+                <span className="text-sm bg-slate-800 px-3 py-1 rounded-full text-slate-300 font-bold border border-slate-600">
+                    {gameState.direction === 1 ? '▶' : '◀'}
+                </span>
             </div>
 
             {/* Opponents */}
@@ -60,14 +67,14 @@ export function GameBoard({ gameState, localPlayerId, onPlayCard, onDrawCard, on
             {/* Center Piles */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-8 items-center">
                 <motion.div 
-                    whileHover={{ scale: 1.05, y: -5 }}
+                    whileHover={{ scale: 1.05, y: -5, filter: "brightness(1.1)" }}
                     whileTap={{ scale: 0.95 }}
                     className="relative cursor-pointer group"
                     onClick={onDrawCard}
                 >
-                    <img src="/img/cards/back.png" className="h-40 w-28 shadow-[0_10px_25px_rgba(0,0,0,0.5)] rounded-lg" alt="draw pile" />
-                    <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors rounded-lg flex items-center justify-center">
-                        <span className="opacity-0 group-hover:opacity-100 font-bold bg-black/70 px-3 py-1 rounded-full transition-opacity">DRAW</span>
+                    <img src="/img/cards/back.png" className="h-40 w-28 shadow-[0_15px_35px_rgba(0,0,0,0.6)] rounded-lg border-2 border-slate-700 transition-all group-hover:border-blue-400" alt="draw pile" />
+                    <div className="absolute inset-0 bg-blue-500/0 group-hover:bg-blue-500/20 transition-colors rounded-lg flex items-center justify-center">
+                        <span className="opacity-0 group-hover:opacity-100 font-bold bg-black/80 px-4 py-2 text-blue-200 rounded-full transition-opacity shadow-[0_0_15px_rgba(59,130,246,0.5)] tracking-widest">DRAW</span>
                     </div>
                 </motion.div>
 
@@ -101,15 +108,16 @@ export function GameBoard({ gameState, localPlayerId, onPlayCard, onDrawCard, on
             </div>
 
             {/* Corner Buttons */}
-            <div className="fixed bottom-8 left-8">
-                <motion.img 
-                    whileHover={{ scale: 1.1, opacity: 0.9 }}
+            <div className="fixed bottom-8 left-8 z-40">
+                <motion.button 
+                    whileHover={{ scale: 1.1, rotate: -5 }}
                     whileTap={{ scale: 0.9 }}
-                    src="/img/background/draw_button.jpeg" 
-                    className="w-20 h-20 rounded-full shadow-lg cursor-pointer border-4 border-slate-800" 
+                    className="w-20 h-20 rounded-full shadow-[0_10px_25px_rgba(0,0,0,0.5)] cursor-pointer border-4 border-slate-700 bg-slate-800 flex items-center justify-center overflow-hidden relative group"
                     onClick={onDrawCard} 
-                    alt="draw button" 
-                />
+                >
+                    <div className="absolute inset-0 bg-blue-500/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <img src="/img/background/draw_button.jpeg" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" alt="draw button" />
+                </motion.button>
             </div>
 
             <div className="fixed bottom-8 right-8">
@@ -158,7 +166,7 @@ export function GameBoard({ gameState, localPlayerId, onPlayCard, onDrawCard, on
                                 >
                                     <img 
                                         src={getCardImageUrl(card)}
-                                        className="h-40 w-28 rounded-lg shadow-xl"
+                                        className="h-40 w-28 rounded-lg shadow-[0_15px_30px_rgba(0,0,0,0.6)]"
                                         alt={`${card.color} ${card.type}`}
                                     />
                                 </motion.div>
@@ -167,6 +175,49 @@ export function GameBoard({ gameState, localPlayerId, onPlayCard, onDrawCard, on
                     </AnimatePresence>
                 </div>
             )}
+
+            {/* Color Picker Modal */}
+            <AnimatePresence>
+                {gameState.phase === 'choosingColor' && isMyTurn && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center"
+                    >
+                        <motion.div 
+                            initial={{ scale: 0.8, y: 50 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.8, y: 50 }}
+                            className="bg-slate-800 p-8 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-slate-600 max-w-md w-full text-center"
+                        >
+                            <h2 className="text-4xl font-display font-bold text-white mb-8 tracking-widest drop-shadow-lg">CHOOSE COLOR</h2>
+                            <div className="grid grid-cols-2 gap-6">
+                                {[
+                                    { color: 'red', hex: '#E74C3C', glow: 'rgba(231,76,60,0.6)' },
+                                    { color: 'blue', hex: '#2980B9', glow: 'rgba(41,128,185,0.6)' },
+                                    { color: 'green', hex: '#27AE60', glow: 'rgba(39,174,96,0.6)' },
+                                    { color: 'yellow', hex: '#F1C40F', glow: 'rgba(241,196,15,0.6)' }
+                                ].map((c) => (
+                                    <motion.button
+                                        key={c.color}
+                                        whileHover={{ scale: 1.05, filter: 'brightness(1.2)' }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={() => onChooseColor?.(c.color)}
+                                        className="h-32 rounded-2xl border-4 border-white/20 transition-all shadow-xl font-bold text-2xl uppercase tracking-widest text-white/90 drop-shadow-md"
+                                        style={{ 
+                                            backgroundColor: c.hex,
+                                            boxShadow: `0 10px 25px ${c.glow}`
+                                        }}
+                                    >
+                                        {c.color}
+                                    </motion.button>
+                                ))}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
