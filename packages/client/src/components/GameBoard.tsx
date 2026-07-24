@@ -19,6 +19,32 @@ export function GameBoard({ gameState, localPlayerId, onPlayCard, onDrawCard, on
     const opponents = gameState.players.filter(p => p.id !== localPlayerId);
 
     const isMyTurn = gameState.players[gameState.currentPlayerIndex]?.id === localPlayerId;
+    const isHost = gameState.players[0]?.id === localPlayerId;
+
+    const getOpponentLayout = (index: number, total: number) => {
+        if (total === 1) return { pos: 'top-12 left-1/2 -translate-x-1/2', rotate: 180 };
+        if (total === 2) {
+            if (index === 0) return { pos: 'top-1/2 left-12 -translate-y-1/2', rotate: 90 };
+            return { pos: 'top-1/2 right-12 -translate-y-1/2', rotate: -90 };
+        }
+        if (total === 3) {
+            if (index === 0) return { pos: 'top-1/2 left-12 -translate-y-1/2', rotate: 90 };
+            if (index === 1) return { pos: 'top-12 left-1/2 -translate-x-1/2', rotate: 180 };
+            return { pos: 'top-1/2 right-12 -translate-y-1/2', rotate: -90 };
+        }
+        if (total === 4) {
+            if (index === 0) return { pos: 'top-1/2 left-12 -translate-y-1/2', rotate: 90 };
+            if (index === 1) return { pos: 'top-12 left-1/3 -translate-x-1/2', rotate: 180 };
+            if (index === 2) return { pos: 'top-12 left-2/3 -translate-x-1/2', rotate: 180 };
+            return { pos: 'top-1/2 right-12 -translate-y-1/2', rotate: -90 };
+        }
+        // 5 opponents (6 players)
+        if (index === 0) return { pos: 'top-1/2 left-12 -translate-y-1/2', rotate: 90 };
+        if (index === 1) return { pos: 'top-12 left-1/4 -translate-x-1/2', rotate: 180 };
+        if (index === 2) return { pos: 'top-12 left-1/2 -translate-x-1/2', rotate: 180 };
+        if (index === 3) return { pos: 'top-12 left-3/4 -translate-x-1/2', rotate: 180 };
+        return { pos: 'top-1/2 right-12 -translate-y-1/2', rotate: -90 };
+    };
 
     return (
         <div className="min-h-screen relative overflow-hidden bg-game-bg">
@@ -37,48 +63,48 @@ export function GameBoard({ gameState, localPlayerId, onPlayCard, onDrawCard, on
             </div>
 
             {/* Opponents */}
-            <div className="absolute top-16 left-0 right-0 flex justify-center gap-12">
-                {opponents.map(opp => {
-                    const isOppTurn = gameState.players[gameState.currentPlayerIndex]?.id === opp.id;
-                    const isVulnerable = opp.hand.length === 1 && !opp.calledUno;
+            {opponents.map((opp, index) => {
+                const isOppTurn = gameState.players[gameState.currentPlayerIndex]?.id === opp.id;
+                const isVulnerable = opp.hand.length === 1 && !opp.calledUno;
+                const layout = getOpponentLayout(index, opponents.length);
 
-                    return (
-                        <div key={opp.id} className="flex flex-col items-center relative">
-                            {isVulnerable && (
-                                <motion.button
-                                    initial={{ scale: 0 }}
-                                    animate={{ scale: 1 }}
-                                    whileHover={{ scale: 1.1 }}
-                                    onClick={() => onCatchUno?.(opp.id)}
-                                    className="absolute -top-10 bg-red-500 text-white font-bold px-3 py-1 rounded-full text-sm shadow-[0_0_15px_rgba(239,68,68,0.8)] z-20 animate-pulse border-2 border-white"
-                                >
-                                    CATCH UNO!
-                                </motion.button>
-                            )}
-                            <motion.div 
-                                animate={{ scale: isOppTurn ? 1.1 : 1, y: isOppTurn ? 10 : 0 }}
-                                className={`px-4 py-1 rounded-full mb-2 z-10 font-bold ${isOppTurn ? 'bg-yellow-500 text-slate-900 shadow-[0_0_15px_rgba(234,179,8,0.5)]' : 'bg-slate-800 text-slate-300'}`}
+                return (
+                    <div key={opp.id} className={`absolute flex flex-col items-center z-10 ${layout.pos}`} style={{ transform: `rotate(${layout.rotate}deg)` }}>
+                        {isVulnerable && (
+                            <motion.button
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                whileHover={{ scale: 1.1 }}
+                                onClick={() => onCatchUno?.(opp.id)}
+                                className="absolute -top-10 bg-red-500 text-white font-bold px-3 py-1 rounded-full text-sm shadow-[0_0_15px_rgba(239,68,68,0.8)] z-20 animate-pulse border-2 border-white whitespace-nowrap"
+                                style={{ transform: `rotate(${-layout.rotate}deg)` }} // Keep button upright for readability
                             >
-                                {opp.name} ({opp.hand.length})
-                            </motion.div>
-                            <div className="flex">
-                                {Array.from({ length: Math.min(opp.hand.length, 7) }).map((_, i) => (
-                                    <motion.img 
-                                        key={i} 
-                                        src="/img/cards/back.png" 
-                                        alt="Card back" 
-                                        className="h-24 w-16 -ml-8 first:ml-0 shadow-lg rounded-md" 
-                                        initial={{ y: -20, opacity: 0 }}
-                                        animate={{ y: 0, opacity: 1 }}
-                                        transition={{ delay: i * 0.05 }}
-                                    />
-                                ))}
-                                {opp.hand.length > 7 && <div className="text-xs ml-2 mt-auto bg-slate-800 px-2 rounded-full">+{opp.hand.length - 7}</div>}
-                            </div>
+                                CATCH UNO!
+                            </motion.button>
+                        )}
+                        <motion.div 
+                            animate={{ scale: isOppTurn ? 1.1 : 1, y: isOppTurn ? 10 : 0 }}
+                            className={`px-4 py-1 rounded-full mb-2 font-bold whitespace-nowrap ${isOppTurn ? 'bg-yellow-500 text-slate-900 shadow-[0_0_15px_rgba(234,179,8,0.5)] z-20' : 'bg-slate-800 text-slate-300'}`}
+                        >
+                            {opp.name} ({opp.hand.length})
+                        </motion.div>
+                        <div className="flex">
+                            {Array.from({ length: Math.min(opp.hand.length, 7) }).map((_, i) => (
+                                <motion.img 
+                                    key={i} 
+                                    src="/img/cards/back.png" 
+                                    alt="Card back" 
+                                    className="h-24 w-16 -ml-8 first:ml-0 shadow-[0_5px_15px_rgba(0,0,0,0.5)] rounded-md border border-slate-700/50" 
+                                    initial={{ y: -20, opacity: 0 }}
+                                    animate={{ y: 0, opacity: 1 }}
+                                    transition={{ delay: i * 0.05 }}
+                                />
+                            ))}
+                            {opp.hand.length > 7 && <div className="text-xs ml-2 mt-auto bg-slate-800 px-2 rounded-full transform rotate-90">+{opp.hand.length - 7}</div>}
                         </div>
-                    );
-                })}
-            </div>
+                    </div>
+                );
+            })}
 
             {/* Center Piles */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-8 items-center">
@@ -286,12 +312,16 @@ export function GameBoard({ gameState, localPlayerId, onPlayCard, onDrawCard, on
                             </div>
 
                             {gameState.phase === 'roundEnd' && (
-                                <button 
-                                    onClick={onStartNextRound}
-                                    className="w-full py-4 bg-green-500 hover:bg-green-400 text-slate-900 font-bold rounded-xl text-xl transition-all shadow-[0_0_20px_rgba(34,197,94,0.4)] hover:scale-105"
-                                >
-                                    Start Next Round
-                                </button>
+                                isHost ? (
+                                    <button 
+                                        onClick={onStartNextRound}
+                                        className="w-full py-4 bg-green-500 hover:bg-green-400 text-slate-900 font-bold rounded-xl text-xl transition-all shadow-[0_0_20px_rgba(34,197,94,0.4)] hover:scale-105"
+                                    >
+                                        Start Next Round
+                                    </button>
+                                ) : (
+                                    <p className="text-slate-400 italic bg-slate-800 py-4 rounded-xl">Waiting for host to start the next round...</p>
+                                )
                             )}
                         </motion.div>
                     </motion.div>
