@@ -11,35 +11,65 @@ export function useColyseusRoom(roomId?: string, playerName = 'Player') {
 
     useEffect(() => {
         let currentRoom: Room;
+        let isMounted = true;
+
         const connect = async () => {
             try {
-                if (roomId) {
-                    currentRoom = await colyseus.joinById(roomId, { name: playerName });
+                if (roomId && roomId.trim() !== '') {
+                    const cleanCode = roomId.trim().toUpperCase();
+                    try {
+                        currentRoom = await colyseus.joinById(cleanCode, { name: playerName, roomCode: cleanCode });
+                    } catch (err) {
+                        console.warn('joinById failed, trying joinOrCreate:', err);
+                        currentRoom = await colyseus.joinOrCreate('uno_room', { name: playerName, roomCode: cleanCode });
+                    }
                 } else {
-                    currentRoom = await colyseus.create('uno_room', { name: playerName });
+                    const generatedCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+                    currentRoom = await colyseus.create('uno_room', { name: playerName, roomCode: generatedCode });
                 }
+
+                if (!isMounted) {
+                    currentRoom.leave();
+                    return;
+                }
+
                 setRoom(currentRoom);
                 setLocalPlayerId(currentRoom.sessionId);
+                setError(null);
 
                 currentRoom.onStateChange((state: any) => {
-                    // Map Colyseus state to EngineState so GameBoard can render it
-                    const engineState: EngineState = {
-                        players: Array.from(state.players.values()).map((p: any) => ({
+                    if (!isMounted) return;
+
+                    // Safely map Colyseus state to EngineState
+                    const players = state.players 
+                        ? Array.from(state.players.values()).map((p: any) => ({
                             id: p.id,
-                            name: p.name,
+                            name: p.name || 'Player',
                             hand: Array.from(p.hand || []).map((c: any) => ({
                                 id: c.id,
                                 color: c.color,
                                 type: c.cardType,
                                 value: c.value
                             })),
-                            score: p.score,
-                            connected: p.connected,
-                            calledUno: p.calledUno
-                        })),
+                            score: p.score || 0,
+                            connected: p.connected ?? true,
+                            calledUno: p.calledUno ?? false
+                        }))
+                        : [];
+
+                    const roundScoresObj = state.roundScores && typeof state.roundScores.entries === 'function'
+                        ? Object.fromEntries(state.roundScores.entries())
+                        : {};
+
+                    const matchScoresObj = state.matchScores && typeof state.matchScores.entries === 'function'
+                        ? Object.fromEntries(state.matchScores.entries())
+                        : {};
+
+                    const engineState: EngineState = {
+                        players,
                         currentPlayerIndex: 0,
-                        direction: state.direction as 1 | -1,
-                        drawPile: Array(state.drawPileCount).fill({ id: 'dummy', color: 'red', type: 'number', value: 0 }),
+                        direction: (state.direction as 1 | -1) || 1,
+                        drawPile: Array(state.drawPileCount || 0).fill({ id: 'dummy', color: 'red', type: 'number', value: 0 }),
                         discardPile: [],
                         topDiscard: state.topDiscard ? {
                             id: state.topDiscard.id,
@@ -47,17 +77,16 @@ export function useColyseusRoom(roomId?: string, playerName = 'Player') {
                             type: state.topDiscard.cardType,
                             value: state.topDiscard.value
                         } : { id: 'dummy', color: 'red', type: 'number', value: 0 } as any,
-                        activeColor: state.activeColor as any,
-                        phase: state.phase,
-                        turnTimerSeconds: state.turnTimeRemaining,
-                        hasDrawnCard: state.hasDrawnCard,
-                        drawnCardId: state.drawnCardId,
+                        activeColor: state.activeColor || 'red',
+                        phase: state.phase || 'waiting',
+                        turnTimerSeconds: state.turnTimeRemaining || 30,
+                        hasDrawnCard: state.hasDrawnCard || false,
+                        drawnCardId: state.drawnCardId || undefined,
                         settings: { maxPlayers: 6, turnTimerSeconds: 30, scoreTarget: 500, houseRules: { stacking: false, jumpIn: false, drawUntilMatch: false, sevenZeroSwap: false } },
-                        roundScores: Object.fromEntries(state.roundScores.entries()),
-                        matchScores: Object.fromEntries(state.matchScores.entries()),
+                        roundScores: roundScoresObj,
+                        matchScores: matchScoresObj,
                     };
 
-                    // Fix currentPlayerIndex
                     const cpIndex = engineState.players.findIndex(p => p.id === state.currentPlayerId);
                     engineState.currentPlayerIndex = Math.max(0, cpIndex);
 
@@ -65,19 +94,26 @@ export function useColyseusRoom(roomId?: string, playerName = 'Player') {
                 });
 
                 currentRoom.onLeave((code) => {
-                    console.log('Left room:', code);
-                    setRoom(null);
+                    console.log('Left room code:', code);
+                    if (isMounted) {
+                        setRoom(null);
+                    }
                 });
             } catch (err: any) {
                 console.error('Colyseus connection error:', err);
-                setError(err.message);
+                if (isMounted) {
+                    setError(err.message || 'Failed to connect to room server.');
+                }
             }
         };
 
         connect();
 
         return () => {
-            if (currentRoom) currentRoom.leave();
+            isMounted = false;
+            if (currentRoom) {
+                currentRoom.leave();
+            }
         };
     }, [roomId, playerName]);
 

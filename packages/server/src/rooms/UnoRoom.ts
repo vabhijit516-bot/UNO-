@@ -21,9 +21,10 @@ export class UnoRoom extends Room<UnoGameState> {
   }
 
   onCreate(options: Record<string, unknown>) {
-    this.roomId = this.generateRoomId();
+    const code = options.roomCode ? String(options.roomCode).toUpperCase() : this.generateRoomId();
+    this.roomId = code;
     this.setState(new UnoGameState());
-    this.state.roomCode = this.roomId;
+    this.state.roomCode = code;
     this.maxClients = Number(options.maxPlayers || 6);
 
     this.onMessage('startGame', (client) => {

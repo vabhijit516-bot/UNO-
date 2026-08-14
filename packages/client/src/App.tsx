@@ -72,7 +72,8 @@ function Lobby() {
     if (!user) return null;
 
     const handleCreate = () => {
-        navigate(`/online`); // Name and avatar will be passed via state or hook later, actually they are tracked in the hook
+        const newCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+        navigate(`/online?room=${newCode}`);
     };
 
     const handleJoin = () => {
