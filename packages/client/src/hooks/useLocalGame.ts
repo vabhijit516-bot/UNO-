@@ -68,7 +68,7 @@ export function useLocalGame(playerIds: string[]) {
         });
     }, [localPlayerId]);
 
-    // Bot AI loop
+    // Bot AI loop with robust state revision tracking
     useEffect(() => {
         const currentPlayerId = gameState.players[gameState.currentPlayerIndex]?.id;
         if (!currentPlayerId || currentPlayerId === localPlayerId) return;
@@ -79,39 +79,41 @@ export function useLocalGame(playerIds: string[]) {
         const timer = setTimeout(() => {
             setGameState(curr => {
                 const cId = curr.players[curr.currentPlayerIndex]?.id;
-                if (cId !== currentPlayerId) return curr; // State changed
+                if (cId !== currentPlayerId) return curr; // Turn changed
 
-                // 1. Check if we can catch someone! (30% chance per tick to notice)
+                let currentStateToProcess = curr;
+
+                // 1. Check if bot can catch someone who forgot UNO!
                 if (Math.random() < 0.3) {
-                    const vulnerable = curr.players.find(p => p.id !== cId && p.hand.length === 1 && !p.calledUno);
+                    const vulnerable = currentStateToProcess.players.find(p => p.id !== cId && p.hand.length === 1 && !p.calledUno);
                     if (vulnerable) {
-                        const { newState } = applyAction(curr, cId, { type: 'catchUno', targetPlayerId: vulnerable.id });
-                        return newState;
+                        const { newState } = applyAction(currentStateToProcess, cId, { type: 'catchUno', targetPlayerId: vulnerable.id });
+                        currentStateToProcess = newState;
                     }
                 }
 
-                if (curr.phase === 'choosingColor') {
-                    // Bot picks best/random color based on its hand
-                    const botHand = curr.players[curr.currentPlayerIndex]?.hand || [];
+                if (currentStateToProcess.phase === 'choosingColor') {
+                    // Bot picks best color based on its hand
+                    const botHand = currentStateToProcess.players[currentStateToProcess.currentPlayerIndex]?.hand || [];
                     const colorCounts: Record<string, number> = { red: 0, yellow: 0, green: 0, blue: 0 };
                     botHand.forEach(card => {
                         if (card.color !== 'wild') colorCounts[card.color] = (colorCounts[card.color] || 0) + 1;
                     });
                     const bestColor = (Object.keys(colorCounts) as Exclude<CardColor, 'wild'>[]).reduce((a, b) => colorCounts[a] >= colorCounts[b] ? a : b, 'red');
-                    const { newState } = applyAction(curr, cId, { type: 'chooseColor', color: bestColor });
+                    const { newState } = applyAction(currentStateToProcess, cId, { type: 'chooseColor', color: bestColor });
                     return newState;
                 }
 
-                const validActions = getValidActionsForPlayer(curr, cId);
+                const validActions = getValidActionsForPlayer(currentStateToProcess, cId);
 
-                if (curr.hasDrawnCard) {
+                if (currentStateToProcess.hasDrawnCard) {
                     // Bot already drew this turn
                     const playAction = validActions.find(a => a.type === 'playCard');
                     if (playAction) {
-                        const { newState } = applyAction(curr, cId, playAction);
+                        const { newState } = applyAction(currentStateToProcess, cId, playAction);
                         return newState;
                     } else {
-                        const { newState } = applyAction(curr, cId, { type: 'passTurn' });
+                        const { newState } = applyAction(currentStateToProcess, cId, { type: 'passTurn' });
                         return newState;
                     }
                 }
@@ -120,7 +122,7 @@ export function useLocalGame(playerIds: string[]) {
 
                 if (playActions.length > 0) {
                     const action = playActions[Math.floor(Math.random() * playActions.length)];
-                    const { newState } = applyAction(curr, cId, action);
+                    const { newState } = applyAction(currentStateToProcess, cId, action);
 
                     // Chance for bot to call UNO if remaining hand is 1
                     const updatedBotHand = newState.players.find(p => p.id === cId)?.hand;
@@ -132,14 +134,22 @@ export function useLocalGame(playerIds: string[]) {
                     }
                     return newState;
                 } else {
-                    const { newState } = applyAction(curr, cId, { type: 'drawCard' });
+                    const { newState } = applyAction(currentStateToProcess, cId, { type: 'drawCard' });
                     return newState;
                 }
             });
         }, delay);
 
         return () => clearTimeout(timer);
-    }, [gameState.currentPlayerIndex, gameState.phase, gameState.hasDrawnCard, gameState.drawnCardId, localPlayerId]);
+    }, [
+        gameState.currentPlayerIndex, 
+        gameState.phase, 
+        gameState.hasDrawnCard, 
+        gameState.drawnCardId, 
+        gameState.players.map(p => p.hand.length).join(','),
+        gameState.players.map(p => p.calledUno).join(','),
+        localPlayerId
+    ]);
 
     return {
         gameState,
