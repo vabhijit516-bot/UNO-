@@ -5,6 +5,7 @@
         "packages/*"
     ],
     "scripts": {
+        "build": "npm run build --workspace @uno/client",
         "test": "npm run test --workspace @uno/shared",
         "dev": "npm run dev --workspace @uno/client"
     }

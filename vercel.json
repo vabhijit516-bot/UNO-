@@ -1,4 +1,6 @@
 {
+  "buildCommand": "npm run build --workspace @uno/client",
+  "outputDirectory": "packages/client/dist",
   "rewrites": [
     {
       "source": "/(.*)",
