@@ -85,15 +85,20 @@ export class UnoRoom extends Room<UnoGameState> {
       if (this.turnTimer) {
           this.turnTimer.clear();
       }
-      this.state.turnTimeRemaining = 30; // Hardcoded default for now
-      
-      // We could add an interval that updates turnTimeRemaining every second
-      // and auto-plays (draws card) when it reaches 0
+      this.state.turnTimeRemaining = 30;
+
       this.turnTimer = this.clock.setTimeout(() => {
-          // Auto draw card if time expires
           const currentPlayerId = this.state.currentPlayerId;
           if (currentPlayerId) {
-              this.handlePlayerAction(currentPlayerId, { type: 'drawCard' });
+              if (this.state.hasDrawnCard) {
+                  this.handlePlayerAction(currentPlayerId, { type: 'passTurn' });
+              } else {
+                  this.handlePlayerAction(currentPlayerId, { type: 'drawCard' });
+                  // If state still hasn't advanced (player couldn't play drawn card), auto-pass turn
+                  if (this.state.currentPlayerId === currentPlayerId && this.state.hasDrawnCard) {
+                      this.handlePlayerAction(currentPlayerId, { type: 'passTurn' });
+                  }
+              }
           }
       }, 30000);
   }

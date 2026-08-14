@@ -183,7 +183,9 @@ export function applyAction(state: EngineState, playerId: string, action: GameAc
         if (!isValidPlay(card, state.topDiscard, state.activeColor)) return { newState: state, events: [], error: 'Invalid play' };
 
         const updatedPlayers = [...state.players];
-        updatedPlayers[playerIndex] = { ...player, hand: player.hand.filter((item) => item.id !== action.cardId) };
+        const newHand = player.hand.filter((item) => item.id !== action.cardId);
+        const calledUno = newHand.length === 1 ? player.calledUno : false;
+        updatedPlayers[playerIndex] = { ...player, hand: newHand, calledUno };
         
         let nextState: EngineState = {
             ...state,
@@ -352,5 +354,7 @@ export function getValidActionsForPlayer(state: EngineState, playerId: string): 
 
     const player = state.players[playerIndex];
     const validMoves = player.hand.filter((card) => isValidPlay(card, state.topDiscard, state.activeColor));
-    return validMoves.map((card) => ({ type: 'playCard', cardId: card.id }));
+    const actions: GameAction[] = validMoves.map((card) => ({ type: 'playCard', cardId: card.id }));
+    actions.push({ type: 'drawCard' });
+    return actions;
 }
