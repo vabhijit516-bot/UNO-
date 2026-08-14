@@ -33,15 +33,18 @@ export function GameBoard({
     const isMyTurn = gameState.players[gameState.currentPlayerIndex]?.id === localPlayerId;
     const isHost = gameState.players[0]?.id === localPlayerId;
 
-    // VFX overlay states
+    // Animation & VFX overlay states
     const [specialEffect, setSpecialEffect] = useState<{ type: string; message: string; targetId?: string } | null>(null);
+    const [landingShockwave, setLandingShockwave] = useState(false);
 
-    // Track card play announcements & trigger VFX / SFX
+    // Track top discard changes for play animation & sound
     useEffect(() => {
         if (!gameState.topDiscard) return;
         const card = gameState.topDiscard;
-        const lastPlayerIndex = (gameState.currentPlayerIndex - gameState.direction + gameState.players.length) % gameState.players.length;
-        const lastPlayer = gameState.players[lastPlayerIndex] || gameState.players[0];
+
+        // Trigger landing shockwave
+        setLandingShockwave(true);
+        const tWave = setTimeout(() => setLandingShockwave(false), 500);
 
         if (card.type === 'wildDrawFour') {
             sfx.playDrawFour();
@@ -58,6 +61,8 @@ export function GameBoard({
         } else {
             sfx.playCardPlay();
         }
+
+        return () => clearTimeout(tWave);
     }, [gameState.topDiscard?.id]);
 
     // Clear VFX state
@@ -85,42 +90,42 @@ export function GameBoard({
 
     // Opponent spatial positions
     const getOpponentLayout = (index: number, total: number) => {
-        if (total === 1) return { pos: 'top-10 sm:top-14 left-1/2 -translate-x-1/2', rotate: 0 };
+        if (total === 1) return { pos: 'top-10 sm:top-14 left-1/2 -translate-x-1/2' };
         if (total === 2) {
-            if (index === 0) return { pos: 'top-1/3 left-2 sm:left-12 -translate-y-1/2', rotate: 0 };
-            return { pos: 'top-1/3 right-2 sm:right-12 -translate-y-1/2', rotate: 0 };
+            if (index === 0) return { pos: 'top-1/3 left-2 sm:left-12 -translate-y-1/2' };
+            return { pos: 'top-1/3 right-2 sm:right-12 -translate-y-1/2' };
         }
         if (total === 3) {
-            if (index === 0) return { pos: 'top-1/3 left-2 sm:left-10 -translate-y-1/2', rotate: 0 };
-            if (index === 1) return { pos: 'top-10 sm:top-14 left-1/2 -translate-x-1/2', rotate: 0 };
-            return { pos: 'top-1/3 right-2 sm:right-10 -translate-y-1/2', rotate: 0 };
+            if (index === 0) return { pos: 'top-1/3 left-2 sm:left-10 -translate-y-1/2' };
+            if (index === 1) return { pos: 'top-10 sm:top-14 left-1/2 -translate-x-1/2' };
+            return { pos: 'top-1/3 right-2 sm:right-10 -translate-y-1/2' };
         }
-        if (index === 0) return { pos: 'top-1/3 left-2 sm:left-8 -translate-y-1/2', rotate: 0 };
-        if (index === 1) return { pos: 'top-10 sm:top-14 left-1/4 -translate-x-1/2', rotate: 0 };
-        if (index === 2) return { pos: 'top-10 sm:top-14 left-1/2 -translate-x-1/2', rotate: 0 };
-        if (index === 3) return { pos: 'top-10 sm:top-14 left-3/4 -translate-x-1/2', rotate: 0 };
-        return { pos: 'top-1/3 right-2 sm:right-8 -translate-y-1/2', rotate: 0 };
+        if (index === 0) return { pos: 'top-1/3 left-2 sm:left-8 -translate-y-1/2' };
+        if (index === 1) return { pos: 'top-10 sm:top-14 left-1/4 -translate-x-1/2' };
+        if (index === 2) return { pos: 'top-10 sm:top-14 left-1/2 -translate-x-1/2' };
+        if (index === 3) return { pos: 'top-10 sm:top-14 left-3/4 -translate-x-1/2' };
+        return { pos: 'top-1/3 right-2 sm:right-8 -translate-y-1/2' };
     };
 
     return (
         <div className="min-h-screen h-screen w-screen relative overflow-hidden bg-gradient-to-b from-[#0a2342] via-[#123e6d] to-[#08182b] select-none flex flex-col justify-between p-2 sm:p-4">
             
             {/* 3D Planet Globe Background Aura */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] sm:w-[950px] sm:h-[950px] rounded-full bg-gradient-to-b from-[#2e933c] via-[#1f6b2a] to-[#13441a] opacity-80 border-8 border-[#52c462]/30 shadow-[0_0_120px_rgba(46,147,60,0.6)] pointer-events-none z-0 overflow-hidden flex items-center justify-center">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] sm:w-[950px] sm:h-[950px] rounded-full bg-gradient-to-b from-[#2e933c] via-[#1f6b2a] to-[#13441a] opacity-85 border-8 border-[#52c462]/30 shadow-[0_0_120px_rgba(46,147,60,0.6)] pointer-events-none z-0 overflow-hidden flex items-center justify-center">
                 {/* Embedded Globe Topography & Clouds */}
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.2),transparent_70%)]"></div>
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.25),transparent_70%)]"></div>
                 <div className="text-[180px] sm:text-[280px] font-black text-white/5 tracking-widest select-none pointer-events-none">UNO</div>
                 
                 {/* Rotating direction arrows */}
                 <motion.div 
                     animate={{ rotate: gameState.direction === 1 ? 360 : -360 }}
                     transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-                    className="absolute w-[450px] h-[450px] sm:w-[650px] sm:h-[650px] rounded-full border-4 border-dashed border-yellow-400/30"
+                    className="absolute w-[450px] h-[450px] sm:w-[650px] sm:h-[650px] rounded-full border-4 border-dashed border-yellow-400/35"
                 ></motion.div>
             </div>
 
             {/* Header / Game Status */}
-            <div className="absolute top-2 sm:top-4 left-1/2 -translate-x-1/2 bg-slate-900/90 px-4 py-1.5 sm:px-8 sm:py-2.5 rounded-full border-2 border-yellow-500/50 backdrop-blur-md z-50 shadow-[0_0_20px_rgba(234,179,8,0.3)] flex items-center gap-3">
+            <div className="absolute top-2 sm:top-4 left-1/2 -translate-x-1/2 bg-slate-900/95 px-4 py-1.5 sm:px-8 sm:py-2.5 rounded-full border-2 border-yellow-500/60 backdrop-blur-md z-50 shadow-[0_0_20px_rgba(234,179,8,0.4)] flex items-center gap-3">
                 <span className="text-sm sm:text-xl font-bold font-display tracking-wider">
                     {isMyTurn ? (
                         <span className="text-emerald-400 animate-pulse drop-shadow-[0_0_12px_rgba(52,211,153,0.9)] flex items-center gap-2">
@@ -140,16 +145,16 @@ export function GameBoard({
             <AnimatePresence>
                 {specialEffect && (
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.5, y: -20 }}
-                        animate={{ opacity: 1, scale: 1.2, y: 0 }}
+                        initial={{ opacity: 0, scale: 0.4, y: -30 }}
+                        animate={{ opacity: 1, scale: 1.25, y: 0 }}
                         exit={{ opacity: 0, scale: 0.8, y: -20 }}
                         className="fixed top-16 sm:top-24 left-1/2 -translate-x-1/2 z-50 pointer-events-none"
                     >
                         <div className={`px-6 py-2 rounded-2xl font-black text-2xl sm:text-4xl shadow-2xl tracking-widest border-4 uppercase text-white flex items-center gap-3 ${
-                            specialEffect.type === 'drawFour' ? 'bg-gradient-to-r from-blue-600 to-indigo-700 border-cyan-400 shadow-cyan-500/50' :
-                            specialEffect.type === 'drawTwo' ? 'bg-gradient-to-r from-yellow-500 to-amber-600 border-yellow-300 shadow-yellow-500/50' :
-                            specialEffect.type === 'skip' ? 'bg-gradient-to-r from-red-600 to-rose-700 border-white shadow-red-500/50' :
-                            'bg-gradient-to-r from-purple-600 to-pink-600 border-purple-300 shadow-purple-500/50'
+                            specialEffect.type === 'drawFour' ? 'bg-gradient-to-r from-blue-600 via-cyan-600 to-indigo-700 border-cyan-300 shadow-cyan-500/60 animate-bounce' :
+                            specialEffect.type === 'drawTwo' ? 'bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-600 border-yellow-200 shadow-yellow-500/60 animate-bounce' :
+                            specialEffect.type === 'skip' ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-700 border-white shadow-red-500/60 animate-pulse' :
+                            'bg-gradient-to-r from-purple-600 to-pink-600 border-purple-300 shadow-purple-500/60'
                         }`}>
                             {specialEffect.message}
                         </div>
@@ -190,9 +195,9 @@ export function GameBoard({
 
                             {/* Avatar Badge */}
                             <motion.div 
-                                animate={{ scale: isOppTurn ? 1.1 : 1 }}
-                                className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center font-bold text-lg sm:text-2xl shadow-xl border-4 transition-all relative ${
-                                    isOppTurn ? 'border-yellow-400 bg-gradient-to-br from-yellow-400 to-amber-600 text-slate-900 shadow-yellow-500/50 z-20' : 'border-slate-700 bg-slate-800 text-white'
+                                animate={{ scale: isOppTurn ? 1.12 : 1 }}
+                                className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center font-bold text-lg sm:text-2xl shadow-2xl border-4 transition-all relative ${
+                                    isOppTurn ? 'border-yellow-400 bg-gradient-to-br from-yellow-400 via-amber-500 to-orange-600 text-slate-900 shadow-yellow-500/60 z-20' : 'border-slate-700 bg-slate-800 text-white'
                                 }`}
                             >
                                 👤
@@ -211,14 +216,16 @@ export function GameBoard({
                         {/* Opponent Card Stack */}
                         <div className="flex mt-1">
                             {Array.from({ length: Math.min(opp.hand.length, 6) }).map((_, i) => (
-                                <motion.img 
+                                <motion.div 
                                     key={`${opp.id}-card-${i}`} 
-                                    src="/img/cards/back.png" 
-                                    alt="Card back" 
-                                    className="h-10 w-7 sm:h-16 sm:w-11 -ml-4 sm:-ml-6 first:ml-0 shadow-md rounded border border-slate-700/60" 
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                />
+                                    initial={{ scale: 0.8, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    transition={{ delay: i * 0.05 }}
+                                    className="h-10 w-7 sm:h-16 sm:w-11 -ml-4 sm:-ml-6 first:ml-0 shadow-lg rounded-lg border border-slate-700/60 overflow-hidden relative"
+                                >
+                                    <img src="/img/cards/back.png" alt="Card back" className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none"></div>
+                                </motion.div>
                             ))}
                             {opp.hand.length > 6 && <div className="text-[10px] sm:text-xs ml-1 mt-auto bg-slate-800 text-white px-1 rounded transform rotate-90">+{opp.hand.length - 6}</div>}
                         </div>
@@ -226,8 +233,10 @@ export function GameBoard({
                 );
             })}
 
-            {/* Center Piles (Draw & Discard) */}
+            {/* Center Piles (Draw & Discard) with Shockwave & Smooth Arc Trajectories */}
             <div className="absolute top-[44%] sm:top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-4 sm:gap-10 items-center z-20">
+                
+                {/* Draw Pile / Pass Button */}
                 {gameState.hasDrawnCard && isMyTurn ? (
                     <motion.div 
                         whileHover={{ scale: 1.05, y: -3 }}
@@ -252,7 +261,10 @@ export function GameBoard({
                             }
                         }}
                     >
-                        <img src="/img/cards/back.png" className="h-28 w-20 sm:h-36 sm:w-26 md:h-40 md:w-28 shadow-[0_15px_35px_rgba(0,0,0,0.7)] rounded-xl border-2 border-slate-700 transition-all group-hover:border-blue-400" alt="draw pile" />
+                        <div className="h-28 w-20 sm:h-36 sm:w-26 md:h-40 md:w-28 shadow-[0_15px_35px_rgba(0,0,0,0.7)] rounded-xl border-2 border-slate-700 transition-all group-hover:border-blue-400 overflow-hidden relative">
+                            <img src="/img/cards/back.png" className="w-full h-full object-cover" alt="draw pile" />
+                            <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent pointer-events-none"></div>
+                        </div>
                         {isMyTurn && (
                             <div className="absolute inset-0 bg-blue-500/0 group-hover:bg-blue-500/20 transition-colors rounded-xl flex items-center justify-center">
                                 <span className="opacity-0 group-hover:opacity-100 font-bold bg-black/80 px-2 py-1 text-blue-200 rounded-full transition-opacity shadow-[0_0_15px_rgba(59,130,246,0.5)] tracking-widest text-xs sm:text-sm">DRAW</span>
@@ -261,32 +273,46 @@ export function GameBoard({
                     </motion.div>
                 )}
 
+                {/* Discard Pile with Landing Shockwave Ripple */}
                 {gameState.topDiscard && (
-                    <motion.div
-                        key={gameState.topDiscard.id}
-                        initial={{ scale: 0.5, rotate: -20, opacity: 0 }}
-                        animate={{ scale: 1, rotate: discardRotation, opacity: 1 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 22 }}
-                        className="relative"
-                    >
-                        <img 
-                            src={getCardImageUrl(gameState.topDiscard)} 
-                            className="h-28 w-20 sm:h-36 sm:w-26 md:h-40 md:w-28 shadow-[0_15px_35px_rgba(0,0,0,0.7)] rounded-xl" 
-                            alt="discard pile" 
-                        />
-                        {/* Active Color Badge for Wild cards */}
-                        {(gameState.topDiscard.type === 'wild' || gameState.topDiscard.type === 'wildDrawFour') && (
-                            <div className="absolute -bottom-3 sm:-bottom-4 left-1/2 -translate-x-1/2 px-3 py-0.5 sm:px-4 sm:py-1 rounded-full font-black text-[10px] sm:text-xs shadow-xl text-slate-900 border-2 border-slate-900 uppercase tracking-widest whitespace-nowrap" 
-                                style={{ 
-                                    backgroundColor: gameState.activeColor === 'red' ? '#E74C3C' : 
-                                                    gameState.activeColor === 'blue' ? '#2980B9' : 
-                                                    gameState.activeColor === 'green' ? '#27AE60' : 
-                                                    gameState.activeColor === 'yellow' ? '#F1C40F' : 'white'
-                                }}>
-                                {gameState.activeColor}
-                            </div>
+                    <div className="relative">
+                        {landingShockwave && (
+                            <motion.div 
+                                initial={{ scale: 0.8, opacity: 0.8 }}
+                                animate={{ scale: 1.6, opacity: 0 }}
+                                transition={{ duration: 0.45 }}
+                                className="absolute inset-0 rounded-xl border-4 border-yellow-400/80 shadow-[0_0_40px_rgba(241,196,15,0.8)] pointer-events-none z-10"
+                            ></motion.div>
                         )}
-                    </motion.div>
+                        <motion.div
+                            key={gameState.topDiscard.id}
+                            initial={{ scale: 0.4, y: 50, rotate: -25, opacity: 0 }}
+                            animate={{ scale: 1, y: 0, rotate: discardRotation, opacity: 1 }}
+                            transition={{ type: "spring", stiffness: 320, damping: 20 }}
+                            className="relative overflow-hidden rounded-xl shadow-[0_15px_35px_rgba(0,0,0,0.7)]"
+                        >
+                            <img 
+                                src={getCardImageUrl(gameState.topDiscard)} 
+                                className="h-28 w-20 sm:h-36 sm:w-26 md:h-40 md:w-28 rounded-xl object-cover" 
+                                alt="discard pile" 
+                            />
+                            {/* Card Gloss Sheen */}
+                            <div className="absolute inset-0 bg-gradient-to-b from-white/25 via-transparent to-black/20 pointer-events-none"></div>
+
+                            {/* Active Color Badge for Wild cards */}
+                            {(gameState.topDiscard.type === 'wild' || gameState.topDiscard.type === 'wildDrawFour') && (
+                                <div className="absolute -bottom-3 sm:-bottom-4 left-1/2 -translate-x-1/2 px-3 py-0.5 sm:px-4 sm:py-1 rounded-full font-black text-[10px] sm:text-xs shadow-xl text-slate-900 border-2 border-slate-900 uppercase tracking-widest whitespace-nowrap" 
+                                    style={{ 
+                                        backgroundColor: gameState.activeColor === 'red' ? '#E74C3C' : 
+                                                        gameState.activeColor === 'blue' ? '#2980B9' : 
+                                                        gameState.activeColor === 'green' ? '#27AE60' : 
+                                                        gameState.activeColor === 'yellow' ? '#F1C40F' : 'white'
+                                    }}>
+                                    {gameState.activeColor}
+                                </div>
+                            )}
+                        </motion.div>
+                    </div>
                 )}
             </div>
 
@@ -335,7 +361,7 @@ export function GameBoard({
                         {localPlayer.calledUno && <span className="bg-red-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">UNO</span>}
                     </div>
 
-                    {/* Cards Fan */}
+                    {/* Cards Fan with Curved Arc Layout & Gloss Sheen */}
                     <div className="flex items-end justify-center perspective-1000">
                         <AnimatePresence>
                             {localPlayer.hand.map((card: Card, index: number) => {
@@ -355,27 +381,27 @@ export function GameBoard({
                                     <motion.div
                                         key={card.id}
                                         layout
-                                        initial={{ y: 80, opacity: 0 }}
+                                        initial={{ y: 120, scale: 0.5, opacity: 0 }}
                                         animate={{ 
                                             y: yOffset, 
                                             rotate: rotation, 
-                                            opacity: isPlayable ? 1 : 0.5,
+                                            opacity: isPlayable ? 1 : 0.45,
                                             zIndex: index 
                                         }}
-                                        exit={{ y: -150, scale: 0.5, opacity: 0 }}
+                                        exit={{ y: -200, scale: 0.3, rotate: Math.random() * 40 - 20, opacity: 0 }}
                                         whileHover={{ 
-                                            y: isPlayable ? -35 : yOffset, 
-                                            scale: isPlayable ? 1.15 : 1, 
+                                            y: isPlayable ? -40 : yOffset, 
+                                            scale: isPlayable ? 1.18 : 1, 
                                             rotate: isPlayable ? 0 : rotation, 
                                             zIndex: 100 
                                         }}
                                         whileTap={{ 
-                                            y: isPlayable ? -35 : yOffset, 
-                                            scale: isPlayable ? 1.15 : 1, 
+                                            y: isPlayable ? -40 : yOffset, 
+                                            scale: isPlayable ? 1.18 : 1, 
                                             rotate: isPlayable ? 0 : rotation, 
                                             zIndex: 100 
                                         }}
-                                        transition={{ type: "spring", stiffness: 320, damping: 22 }}
+                                        transition={{ type: "spring", stiffness: 340, damping: 22, delay: index * 0.03 }}
                                         className={`${isPlayable ? 'cursor-pointer' : 'cursor-not-allowed'} ${overlapMargin} first:ml-0 transform-origin-bottom relative shrink-0`}
                                         onClick={() => {
                                             if (isMyTurn && isPlayable) {
@@ -383,15 +409,19 @@ export function GameBoard({
                                             }
                                         }}
                                     >
-                                        <img 
-                                            src={getCardImageUrl(card)}
-                                            className={`h-28 w-20 sm:h-36 sm:w-26 md:h-40 md:w-28 rounded-xl transition-all ${
-                                                isPlayable 
-                                                    ? 'shadow-[0_10px_25px_rgba(0,0,0,0.7)] border-2 border-emerald-400/90 shadow-emerald-500/40' 
-                                                    : 'shadow-[0_4px_12px_rgba(0,0,0,0.5)] filter grayscale-[20%]'
-                                            }`}
-                                            alt={`${card.color} ${card.type}`}
-                                        />
+                                        <div className={`h-28 w-20 sm:h-36 sm:w-26 md:h-40 md:w-28 rounded-xl overflow-hidden relative transition-all ${
+                                            isPlayable 
+                                                ? 'shadow-[0_12px_28px_rgba(0,0,0,0.8)] border-2 border-emerald-400/90 shadow-emerald-500/40 ring-2 ring-emerald-400/30' 
+                                                : 'shadow-[0_4px_12px_rgba(0,0,0,0.6)] filter brightness-[0.7] grayscale-[15%]'
+                                        }`}>
+                                            <img 
+                                                src={getCardImageUrl(card)}
+                                                className="w-full h-full object-cover"
+                                                alt={`${card.color} ${card.type}`}
+                                            />
+                                            {/* 3D Gloss Sheen Overlay */}
+                                            <div className="absolute inset-0 bg-gradient-to-b from-white/30 via-transparent to-black/25 pointer-events-none"></div>
+                                        </div>
                                     </motion.div>
                                 );
                             })}
