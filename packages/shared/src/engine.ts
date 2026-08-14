@@ -1,6 +1,6 @@
 import { createDeck, dealHands, shuffleDeck } from './deck.js';
 import { getCardPoints, isValidPlay } from './rules.js';
-import type { Card, CardColor, EngineState, GameAction, GameEvent, PlayerState, RoomSettings } from './types.js';
+import type { Card, CardColor, GamePhase, EngineState, GameAction, GameEvent, PlayerState, RoomSettings } from './types.js';
 
 const defaultSettings: RoomSettings = {
     maxPlayers: 4,
@@ -14,16 +14,85 @@ const defaultSettings: RoomSettings = {
     },
 };
 
+function setupOpeningPile(playerCount: number, starterIndex: number, remainingDeck: Card[]): {
+    firstCard: Card;
+    drawPile: Card[];
+    discardPile: Card[];
+    direction: 1 | -1;
+    currentPlayerIndex: number;
+    phase: GamePhase;
+    activeColor: CardColor;
+    penaltyDrawIndex?: number;
+    penaltyDrawCount?: number;
+} {
+    let remaining = [...remainingDeck];
+    let firstCard = remaining.shift()!;
+
+    // Flipped Wild Draw Four: Return to deck, reshuffle, and flip a new card
+    while (firstCard.type === 'wildDrawFour') {
+        remaining.push(firstCard);
+        remaining = shuffleDeck(remaining);
+        firstCard = remaining.shift()!;
+    }
+
+    let direction: 1 | -1 = 1;
+    let currentPlayerIndex = starterIndex;
+    let phase: GamePhase = 'playing';
+    let activeColor: CardColor = firstCard.color === 'wild' ? 'red' : firstCard.color;
+    let penaltyDrawIndex: number | undefined;
+    let penaltyDrawCount: number | undefined;
+
+    if (firstCard.type === 'skip') {
+        currentPlayerIndex = (starterIndex + 1) % playerCount;
+    } else if (firstCard.type === 'reverse') {
+        direction = -1;
+        if (playerCount === 2) {
+            currentPlayerIndex = (starterIndex + 1) % playerCount;
+        }
+    } else if (firstCard.type === 'drawTwo') {
+        penaltyDrawIndex = starterIndex;
+        penaltyDrawCount = 2;
+        currentPlayerIndex = (starterIndex + 1) % playerCount;
+    } else if (firstCard.type === 'wild') {
+        phase = 'choosingColor';
+        currentPlayerIndex = starterIndex;
+    }
+
+    return {
+        firstCard,
+        drawPile: remaining,
+        discardPile: [firstCard],
+        direction,
+        currentPlayerIndex,
+        phase,
+        activeColor,
+        penaltyDrawIndex,
+        penaltyDrawCount,
+    };
+}
+
 export function initializeGame(playerIds: string[], settings: Partial<RoomSettings> = {}): EngineState {
     const resolvedSettings: RoomSettings = { ...defaultSettings, ...settings, houseRules: { ...defaultSettings.houseRules, ...settings.houseRules } };
     const deck = shuffleDeck(createDeck());
     const { hands, remaining } = dealHands(deck, playerIds.length);
-    const firstCard = remaining.shift()!;
-    const discardPile = [firstCard];
+    
+    const opening = setupOpeningPile(playerIds.length, 0, remaining);
+
+    let updatedHands = hands.map(h => [...h]);
+    let drawPile = opening.drawPile;
+
+    if (opening.penaltyDrawIndex !== undefined && opening.penaltyDrawCount) {
+        for (let i = 0; i < opening.penaltyDrawCount; i++) {
+            if (drawPile.length > 0) {
+                updatedHands[opening.penaltyDrawIndex].push(drawPile.shift()!);
+            }
+        }
+    }
+
     const players: PlayerState[] = playerIds.map((id, index) => ({
         id,
         name: `Player ${index + 1}`,
-        hand: hands[index],
+        hand: updatedHands[index],
         score: 0,
         connected: true,
         calledUno: false,
@@ -31,13 +100,13 @@ export function initializeGame(playerIds: string[], settings: Partial<RoomSettin
 
     return {
         players,
-        currentPlayerIndex: 0,
-        direction: 1,
-        drawPile: remaining,
-        discardPile,
-        topDiscard: firstCard,
-        activeColor: firstCard.color === 'wild' ? 'red' : firstCard.color,
-        phase: 'playing',
+        currentPlayerIndex: opening.currentPlayerIndex,
+        direction: opening.direction,
+        drawPile,
+        discardPile: opening.discardPile,
+        topDiscard: opening.firstCard,
+        activeColor: opening.activeColor,
+        phase: opening.phase,
         turnTimerSeconds: resolvedSettings.turnTimerSeconds,
         hasDrawnCard: false,
         roundScores: {},
@@ -83,13 +152,23 @@ export function applyAction(state: EngineState, playerId: string, action: GameAc
         const deck = shuffleDeck(createDeck());
         const playerIds = state.players.map(p => p.id);
         const { hands, remaining } = dealHands(deck, playerIds.length);
-        const firstCard = remaining.shift()!;
-        const discardPile = [firstCard];
         const nextStarter = (state.currentPlayerIndex + 1) % state.players.length;
+
+        const opening = setupOpeningPile(playerIds.length, nextStarter, remaining);
+        let updatedHands = hands.map(h => [...h]);
+        let drawPile = opening.drawPile;
+
+        if (opening.penaltyDrawIndex !== undefined && opening.penaltyDrawCount) {
+            for (let i = 0; i < opening.penaltyDrawCount; i++) {
+                if (drawPile.length > 0) {
+                    updatedHands[opening.penaltyDrawIndex].push(drawPile.shift()!);
+                }
+            }
+        }
 
         const players: PlayerState[] = state.players.map((p, index) => ({
             ...p,
-            hand: hands[index],
+            hand: updatedHands[index],
             calledUno: false
         }));
 
@@ -97,13 +176,13 @@ export function applyAction(state: EngineState, playerId: string, action: GameAc
             newState: {
                 ...state,
                 players,
-                currentPlayerIndex: nextStarter,
-                direction: 1,
-                drawPile: remaining,
-                discardPile,
-                topDiscard: firstCard,
-                activeColor: firstCard.color === 'wild' ? 'red' : firstCard.color,
-                phase: 'playing',
+                currentPlayerIndex: opening.currentPlayerIndex,
+                direction: opening.direction,
+                drawPile,
+                discardPile: opening.discardPile,
+                topDiscard: opening.firstCard,
+                activeColor: opening.activeColor,
+                phase: opening.phase,
                 hasDrawnCard: false,
                 drawnCardId: undefined,
                 roundWinnerId: undefined,

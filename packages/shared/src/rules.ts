@@ -15,6 +15,10 @@ export function isValidPlay(card: Card, topDiscard: Card, activeColor: CardColor
   return false;
 }
 
+export function hasMatchingColor(hand: Card[], activeColor: CardColor): boolean {
+  return hand.some((card) => card.color === activeColor);
+}
+
 export function getValidMoves(hand: Card[], topDiscard: Card, activeColor: CardColor): Card[] {
   return hand.filter((card) => isValidPlay(card, topDiscard, activeColor));
 }
