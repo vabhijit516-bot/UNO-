@@ -2,6 +2,7 @@ import { EngineState, Card, isValidPlay } from '@uno/shared';
 import { getCardImageUrl } from '../utils/cardImages';
 import { sfx } from '../utils/sfx';
 import { animateDealCards, animateLandingShockwave, animateDrawCard3D } from '../utils/cardAnimations';
+import { ThreeCanvas } from './ThreeCanvas';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMemo, useState, useEffect, useRef } from 'react';
 
@@ -37,11 +38,27 @@ export function GameBoard({
     // Animation & VFX overlay states
     const [specialEffect, setSpecialEffect] = useState<{ type: string; message: string; targetId?: string } | null>(null);
 
+    // Hand mouse tilt state for smooth 3D hand movement
+    const [handTilt, setHandTilt] = useState({ rx: 0, ry: 0 });
+
     // Refs for anime.js target elements
     const discardRef = useRef<HTMLDivElement>(null);
     const drawPileRef = useRef<HTMLDivElement>(null);
     const handContainerRef = useRef<HTMLDivElement>(null);
     const shockwaveRef = useRef<HTMLDivElement>(null);
+
+    // Smooth 3D hand movement tracking
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            const cx = window.innerWidth / 2;
+            const cy = window.innerHeight / 2;
+            const rx = ((e.clientY - cy) / cy) * -8;
+            const ry = ((e.clientX - cx) / cx) * 12;
+            setHandTilt({ rx, ry });
+        };
+        window.addEventListener('mousemove', handleMouseMove);
+        return () => window.removeEventListener('mousemove', handleMouseMove);
+    }, []);
 
     // Trigger initial 3D deal card animation with anime.js on mount
     useEffect(() => {
@@ -130,19 +147,8 @@ export function GameBoard({
     return (
         <div className="min-h-screen h-screen w-screen relative overflow-hidden bg-gradient-to-b from-[#0a2342] via-[#123e6d] to-[#08182b] select-none flex flex-col justify-between p-2 sm:p-4 perspective-1000">
             
-            {/* 3D Planet Globe Background Aura */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] sm:w-[950px] sm:h-[950px] rounded-full bg-gradient-to-b from-[#2e933c] via-[#1f6b2a] to-[#13441a] opacity-85 border-8 border-[#52c462]/30 shadow-[0_0_120px_rgba(46,147,60,0.6)] pointer-events-none z-0 overflow-hidden flex items-center justify-center">
-                {/* Embedded Globe Topography & Clouds */}
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.25),transparent_70%)]"></div>
-                <div className="text-[180px] sm:text-[280px] font-black text-white/5 tracking-widest select-none pointer-events-none">UNO</div>
-                
-                {/* Rotating direction arrows */}
-                <motion.div 
-                    animate={{ rotate: gameState.direction === 1 ? 360 : -360 }}
-                    transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-                    className="absolute w-[450px] h-[450px] sm:w-[650px] sm:h-[650px] rounded-full border-4 border-dashed border-yellow-400/35"
-                ></motion.div>
-            </div>
+            {/* Three.js WebGL 3D Planet Globe & Particle Field Canvas */}
+            <ThreeCanvas direction={gameState.direction} />
 
             {/* Header / Game Status */}
             <div className="absolute top-2 sm:top-4 left-1/2 -translate-x-1/2 bg-slate-900/95 px-4 py-1.5 sm:px-8 sm:py-2.5 rounded-full border-2 border-yellow-500/60 backdrop-blur-md z-50 shadow-[0_0_20px_rgba(234,179,8,0.4)] flex items-center gap-3">
@@ -353,7 +359,7 @@ export function GameBoard({
                 />
             </div>
 
-            {/* Local Player Hand & Avatar */}
+            {/* Local Player Hand & Avatar with 3D Mouse Movement Parallax */}
             {localPlayer && (
                 <div ref={handContainerRef} className="fixed bottom-2 sm:bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center z-40 max-w-full px-2">
                     
@@ -366,8 +372,13 @@ export function GameBoard({
                         {localPlayer.calledUno && <span className="bg-red-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">UNO</span>}
                     </div>
 
-                    {/* Cards Fan with Curved Arc Layout & Anime.js 3D Stagger */}
-                    <div className="flex items-end justify-center perspective-1000">
+                    {/* Cards Fan with Dynamic 3D Mouse Parallax Hand Movement */}
+                    <div 
+                        className="flex items-end justify-center perspective-1000 transition-transform duration-200 ease-out"
+                        style={{
+                            transform: `rotateX(${handTilt.rx}deg) rotateY(${handTilt.ry}deg)`
+                        }}
+                    >
                         <AnimatePresence>
                             {localPlayer.hand.map((card: Card, index: number) => {
                                 const total = localPlayer.hand.length;
@@ -396,13 +407,13 @@ export function GameBoard({
                                         exit={{ y: -200, scale: 0.3, rotate: Math.random() * 40 - 20, opacity: 0 }}
                                         whileHover={{ 
                                             y: isPlayable ? -40 : yOffset, 
-                                            scale: isPlayable ? 1.18 : 1, 
+                                            scale: isPlayable ? 1.2 : 1, 
                                             rotate: isPlayable ? 0 : rotation, 
                                             zIndex: 100 
                                         }}
                                         whileTap={{ 
                                             y: isPlayable ? -40 : yOffset, 
-                                            scale: isPlayable ? 1.18 : 1, 
+                                            scale: isPlayable ? 1.2 : 1, 
                                             rotate: isPlayable ? 0 : rotation, 
                                             zIndex: 100 
                                         }}
