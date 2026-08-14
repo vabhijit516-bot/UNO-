@@ -1,8 +1,9 @@
 import { EngineState, Card, isValidPlay } from '@uno/shared';
 import { getCardImageUrl } from '../utils/cardImages';
 import { sfx } from '../utils/sfx';
+import { animateDealCards, animateLandingShockwave, animateDrawCard3D } from '../utils/cardAnimations';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 
 interface GameBoardProps {
     gameState: EngineState;
@@ -35,16 +36,27 @@ export function GameBoard({
 
     // Animation & VFX overlay states
     const [specialEffect, setSpecialEffect] = useState<{ type: string; message: string; targetId?: string } | null>(null);
-    const [landingShockwave, setLandingShockwave] = useState(false);
 
-    // Track top discard changes for play animation & sound
+    // Refs for anime.js target elements
+    const discardRef = useRef<HTMLDivElement>(null);
+    const drawPileRef = useRef<HTMLDivElement>(null);
+    const handContainerRef = useRef<HTMLDivElement>(null);
+    const shockwaveRef = useRef<HTMLDivElement>(null);
+
+    // Trigger initial 3D deal card animation with anime.js on mount
+    useEffect(() => {
+        animateDealCards('.anime-3d-card', 100);
+    }, []);
+
+    // Track top discard changes for 3D shockwave animation & sound
     useEffect(() => {
         if (!gameState.topDiscard) return;
         const card = gameState.topDiscard;
 
-        // Trigger landing shockwave
-        setLandingShockwave(true);
-        const tWave = setTimeout(() => setLandingShockwave(false), 500);
+        // Trigger anime.js 3D shockwave landing ripple
+        if (shockwaveRef.current) {
+            animateLandingShockwave(shockwaveRef.current);
+        }
 
         if (card.type === 'wildDrawFour') {
             sfx.playDrawFour();
@@ -61,8 +73,6 @@ export function GameBoard({
         } else {
             sfx.playCardPlay();
         }
-
-        return () => clearTimeout(tWave);
     }, [gameState.topDiscard?.id]);
 
     // Clear VFX state
@@ -88,6 +98,16 @@ export function GameBoard({
         return (Math.abs(hash) % 11) - 5;
     }, [gameState.topDiscard?.id]);
 
+    // Handle 3D card draw click
+    const handleDrawClick = () => {
+        if (!isMyTurn) return;
+        sfx.playCardDraw();
+        if (drawPileRef.current && handContainerRef.current) {
+            animateDrawCard3D(drawPileRef.current, handContainerRef.current);
+        }
+        onDrawCard();
+    };
+
     // Opponent spatial positions
     const getOpponentLayout = (index: number, total: number) => {
         if (total === 1) return { pos: 'top-10 sm:top-14 left-1/2 -translate-x-1/2' };
@@ -108,7 +128,7 @@ export function GameBoard({
     };
 
     return (
-        <div className="min-h-screen h-screen w-screen relative overflow-hidden bg-gradient-to-b from-[#0a2342] via-[#123e6d] to-[#08182b] select-none flex flex-col justify-between p-2 sm:p-4">
+        <div className="min-h-screen h-screen w-screen relative overflow-hidden bg-gradient-to-b from-[#0a2342] via-[#123e6d] to-[#08182b] select-none flex flex-col justify-between p-2 sm:p-4 perspective-1000">
             
             {/* 3D Planet Globe Background Aura */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] sm:w-[950px] sm:h-[950px] rounded-full bg-gradient-to-b from-[#2e933c] via-[#1f6b2a] to-[#13441a] opacity-85 border-8 border-[#52c462]/30 shadow-[0_0_120px_rgba(46,147,60,0.6)] pointer-events-none z-0 overflow-hidden flex items-center justify-center">
@@ -216,16 +236,13 @@ export function GameBoard({
                         {/* Opponent Card Stack */}
                         <div className="flex mt-1">
                             {Array.from({ length: Math.min(opp.hand.length, 6) }).map((_, i) => (
-                                <motion.div 
+                                <div 
                                     key={`${opp.id}-card-${i}`} 
-                                    initial={{ scale: 0.8, opacity: 0 }}
-                                    animate={{ scale: 1, opacity: 1 }}
-                                    transition={{ delay: i * 0.05 }}
-                                    className="h-10 w-7 sm:h-16 sm:w-11 -ml-4 sm:-ml-6 first:ml-0 shadow-lg rounded-lg border border-slate-700/60 overflow-hidden relative"
+                                    className="anime-3d-card h-10 w-7 sm:h-16 sm:w-11 -ml-4 sm:-ml-6 first:ml-0 shadow-lg rounded-lg border border-slate-700/60 overflow-hidden relative"
                                 >
                                     <img src="/img/cards/back.png" alt="Card back" className="w-full h-full object-cover" />
                                     <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none"></div>
-                                </motion.div>
+                                </div>
                             ))}
                             {opp.hand.length > 6 && <div className="text-[10px] sm:text-xs ml-1 mt-auto bg-slate-800 text-white px-1 rounded transform rotate-90">+{opp.hand.length - 6}</div>}
                         </div>
@@ -251,15 +268,11 @@ export function GameBoard({
                     </motion.div>
                 ) : (
                     <motion.div 
+                        ref={drawPileRef}
                         whileHover={{ scale: isMyTurn ? 1.06 : 1, y: isMyTurn ? -3 : 0 }}
                         whileTap={{ scale: isMyTurn ? 0.95 : 1 }}
                         className={`relative group ${isMyTurn ? 'cursor-pointer' : 'cursor-not-allowed opacity-85'}`}
-                        onClick={() => {
-                            if (isMyTurn) {
-                                sfx.playCardDraw();
-                                onDrawCard();
-                            }
-                        }}
+                        onClick={handleDrawClick}
                     >
                         <div className="h-28 w-20 sm:h-36 sm:w-26 md:h-40 md:w-28 shadow-[0_15px_35px_rgba(0,0,0,0.7)] rounded-xl border-2 border-slate-700 transition-all group-hover:border-blue-400 overflow-hidden relative">
                             <img src="/img/cards/back.png" className="w-full h-full object-cover" alt="draw pile" />
@@ -273,22 +286,19 @@ export function GameBoard({
                     </motion.div>
                 )}
 
-                {/* Discard Pile with Landing Shockwave Ripple */}
+                {/* Discard Pile with Anime.js 3D Landing Shockwave Ripple */}
                 {gameState.topDiscard && (
-                    <div className="relative">
-                        {landingShockwave && (
-                            <motion.div 
-                                initial={{ scale: 0.8, opacity: 0.8 }}
-                                animate={{ scale: 1.6, opacity: 0 }}
-                                transition={{ duration: 0.45 }}
-                                className="absolute inset-0 rounded-xl border-4 border-yellow-400/80 shadow-[0_0_40px_rgba(241,196,15,0.8)] pointer-events-none z-10"
-                            ></motion.div>
-                        )}
+                    <div ref={discardRef} className="relative">
+                        <div 
+                            ref={shockwaveRef} 
+                            className="absolute inset-0 rounded-xl border-4 border-yellow-400/90 shadow-[0_0_50px_rgba(241,196,15,1)] pointer-events-none opacity-0 z-10"
+                        ></div>
+
                         <motion.div
                             key={gameState.topDiscard.id}
                             initial={{ scale: 0.4, y: 50, rotate: -25, opacity: 0 }}
                             animate={{ scale: 1, y: 0, rotate: discardRotation, opacity: 1 }}
-                            transition={{ type: "spring", stiffness: 320, damping: 20 }}
+                            transition={{ type: "spring", stiffness: 340, damping: 20 }}
                             className="relative overflow-hidden rounded-xl shadow-[0_15px_35px_rgba(0,0,0,0.7)]"
                         >
                             <img 
@@ -322,12 +332,7 @@ export function GameBoard({
                     whileHover={{ scale: isMyTurn ? 1.08 : 1 }}
                     whileTap={{ scale: isMyTurn ? 0.92 : 1 }}
                     className={`pointer-events-auto w-14 h-14 sm:w-20 sm:h-20 rounded-full shadow-[0_10px_25px_rgba(0,0,0,0.6)] border-2 sm:border-4 border-slate-700 bg-slate-800 flex items-center justify-center overflow-hidden relative group ${isMyTurn ? 'cursor-pointer ring-2 ring-blue-500/50' : 'cursor-not-allowed opacity-50'}`}
-                    onClick={() => {
-                        if (isMyTurn) {
-                            sfx.playCardDraw();
-                            onDrawCard();
-                        }
-                    }} 
+                    onClick={handleDrawClick} 
                     title="Draw Card"
                 >
                     <div className="absolute inset-0 bg-blue-500/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -350,7 +355,7 @@ export function GameBoard({
 
             {/* Local Player Hand & Avatar */}
             {localPlayer && (
-                <div className="fixed bottom-2 sm:bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center z-40 max-w-full px-2">
+                <div ref={handContainerRef} className="fixed bottom-2 sm:bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center z-40 max-w-full px-2">
                     
                     {/* User Avatar Badge & Turn Ring */}
                     <div className="relative mb-1 flex items-center gap-2 bg-slate-900/90 px-3 py-1 rounded-full border border-slate-700 shadow-lg">
@@ -361,7 +366,7 @@ export function GameBoard({
                         {localPlayer.calledUno && <span className="bg-red-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">UNO</span>}
                     </div>
 
-                    {/* Cards Fan with Curved Arc Layout & Gloss Sheen */}
+                    {/* Cards Fan with Curved Arc Layout & Anime.js 3D Stagger */}
                     <div className="flex items-end justify-center perspective-1000">
                         <AnimatePresence>
                             {localPlayer.hand.map((card: Card, index: number) => {
@@ -402,7 +407,7 @@ export function GameBoard({
                                             zIndex: 100 
                                         }}
                                         transition={{ type: "spring", stiffness: 340, damping: 22, delay: index * 0.03 }}
-                                        className={`${isPlayable ? 'cursor-pointer' : 'cursor-not-allowed'} ${overlapMargin} first:ml-0 transform-origin-bottom relative shrink-0`}
+                                        className={`anime-3d-card ${isPlayable ? 'cursor-pointer' : 'cursor-not-allowed'} ${overlapMargin} first:ml-0 transform-origin-bottom relative shrink-0`}
                                         onClick={() => {
                                             if (isMyTurn && isPlayable) {
                                                 onPlayCard(card.id);
