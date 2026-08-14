@@ -159,11 +159,28 @@ function OnlineGame() {
     }
 
     if (error) {
+        const errorText = typeof error === 'string' ? error : (error as any)?.message || String(error);
         return (
-            <div className="min-h-screen flex items-center justify-center bg-game-bg text-white flex-col">
-                <h2 className="text-2xl text-red-500 mb-4">Connection Error</h2>
-                <p>{error}</p>
-                <Link to="/lobby" className="mt-4 text-blue-400">Back to Lobby</Link>
+            <div className="min-h-screen flex items-center justify-center bg-game-bg text-white flex-col p-6 text-center">
+                <h2 className="text-3xl font-display font-bold text-red-500 mb-4">Connection Error</h2>
+                <p className="text-slate-300 mb-6 max-w-md bg-slate-900/80 p-4 rounded-xl border border-slate-700 font-mono text-sm">
+                    {errorText}
+                </p>
+                <div className="flex gap-4">
+                    <button 
+                        onClick={() => {
+                            const newCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+                            navigate(`/online?room=${newCode}`);
+                            window.location.reload();
+                        }}
+                        className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full font-bold shadow-lg transition-all"
+                    >
+                        Create New Room
+                    </button>
+                    <Link to="/lobby" className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-full font-bold transition-all">
+                        Back to Lobby
+                    </Link>
+                </div>
             </div>
         );
     }

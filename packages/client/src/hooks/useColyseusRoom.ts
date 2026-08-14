@@ -19,9 +19,14 @@ export function useColyseusRoom(roomId?: string, playerName = 'Player') {
                     const cleanCode = roomId.trim().toUpperCase();
                     try {
                         currentRoom = await colyseus.joinById(cleanCode, { name: playerName, roomCode: cleanCode });
-                    } catch (err) {
-                        console.warn('joinById failed, trying joinOrCreate:', err);
-                        currentRoom = await colyseus.joinOrCreate('uno_room', { name: playerName, roomCode: cleanCode });
+                    } catch (err1) {
+                        console.warn('joinById failed, trying joinOrCreate:', err1);
+                        try {
+                            currentRoom = await colyseus.joinOrCreate('uno_room', { name: playerName, roomCode: cleanCode });
+                        } catch (err2) {
+                            console.warn('joinOrCreate failed, creating room with code:', cleanCode);
+                            currentRoom = await colyseus.create('uno_room', { name: playerName, roomCode: cleanCode });
+                        }
                     }
                 } else {
                     const generatedCode = Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -102,7 +107,10 @@ export function useColyseusRoom(roomId?: string, playerName = 'Player') {
             } catch (err: any) {
                 console.error('Colyseus connection error:', err);
                 if (isMounted) {
-                    setError(err.message || 'Failed to connect to room server.');
+                    const errorString = typeof err === 'string'
+                        ? err
+                        : (err?.message || err?.error || 'Room server unavailable. Reconnecting...');
+                    setError(errorString);
                 }
             }
         };
